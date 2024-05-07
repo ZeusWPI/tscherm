@@ -116,7 +116,7 @@ struct WiFiClient
                 ip_event_got_ip_t* event = cast(ip_event_got_ip_t*) eventData;
                 uint* ipPtr = &event.ip_info.ip.addr;
                 ubyte[] b = (cast(ubyte*) ipPtr)[0 .. 4];
-                printf("Connected with ip address: %d.%d.%d.%d", b[0], b[1], b[2], b[3]); // LOGI
+                printf("Connected with ip address: %d.%d.%d.%d\n", b[0], b[1], b[2], b[3]); // LOGI
 
                 // Notify waitForConnection via event group
                 xEventGroupSetBits(m_eventGroup, EventGroupBits.CONNECTED);

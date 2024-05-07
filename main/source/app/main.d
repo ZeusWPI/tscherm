@@ -5,6 +5,7 @@ import app.vga.dma_descriptor_ring : DMADescriptorRing;
 import app.vga.framebuffer : FrameBuffer;
 import app.vga.video_timings : VideoTimings, VIDEO_TIMINGS_320W_480H;
 
+import idfd.net.http_alt : HttpServer;
 import idfd.net.tcp : tcp_client;
 import idfd.net.wifi_client : WiFiClient;
 import idfd.signalio.gpio : GPIOPin;
@@ -26,6 +27,7 @@ struct TSchermRTConfig
     const(VideoTimings) vt;
     int redPin, greenPin, bluePin, hSyncPin, vSyncPin;
     string ssid, password;
+    ushort httpPort;
 }
 
 struct TSchermCTConfig
@@ -39,6 +41,7 @@ struct TScherm(TSchermCTConfig ctConfig)
     DMADescriptorRing m_dmaDescriptorRing;
     I2SSignalGenerator m_signalGenerator;
     WiFiClient m_wifiClient;
+    HttpServer m_httpServer;
 
     this(const TSchermRTConfig rtConfig)
     {
@@ -48,6 +51,13 @@ struct TScherm(TSchermCTConfig ctConfig)
         {
             m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
             m_wifiClient.startAsync;
+        }
+
+        // Wait for async network init to complete
+        {
+            m_wifiClient.waitForConnection;
+
+            printf("Network initialization complete\n");
         }
 
         // Init VGA
@@ -73,11 +83,9 @@ struct TScherm(TSchermCTConfig ctConfig)
             printf("VGA initialization complete\n");
         }
 
-        // Wait for async network init to complete
         {
-            m_wifiClient.waitForConnection;
-
-            printf("Network initialization complete\n");
+            m_httpServer = HttpServer(m_rtConfig.httpPort);
+            m_httpServer.start;
         }
     }
 
@@ -85,78 +93,6 @@ struct TScherm(TSchermCTConfig ctConfig)
     {
         immutable ubyte[] zeusImage = cast(immutable ubyte[]) import("zeus.raw");
         m_fb.drawGrayscaleImage(zeusImage, Color.YELLOW, Color.BLACK);
-    }
-
-    void connectTCP() @trusted
-    {
-        string ip = "10.0.0.130";
-        ushort port = 1234;
-
-        import idf.sys.socket :
-            socket, connect, send, recv, close,
-            sockaddr, sockaddr_in,
-            inet_pton, htons,
-            AF_INET, SOCK_STREAM, IPPROTO_IP;
-
-        sockaddr_in addr;
-        {
-            addr.sin_family = AF_INET;
-
-            UniqueHeapArray!char ipStringz = ip.toStringz;
-            inet_pton(AF_INET, &ipStringz.get[0], &addr.sin_addr);
-
-            addr.sin_port = htons(port);
-        }
-
-        outer_loop:
-        while (true)
-        {
-            int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-            assert(sock);
-            scope(exit) close(sock);
-
-            if (connect(sock, cast(sockaddr*) &addr, addr.sizeof) != 0)
-            {
-                printf("Failed to connect, retrying soon...\n");
-                vTaskDelay(50);
-                continue;
-            }
-
-            {
-                enum msg = "Send image (320*480 bytes)\n";
-                int sent = send(sock, &msg[0], msg.length, 0);
-                if (sent != msg.length)
-                {
-                    printf("send failed, reconnecting...\n");
-                    continue outer_loop;
-                }
-                printf("Sent %ld bytes\n", sent);
-            }
-
-            foreach (y; 0 .. m_rtConfig.vt.v.res)
-                foreach (x; 0 .. m_rtConfig.vt.h.res)
-                {
-                    ubyte[1] buf;
-                    while (recv(sock, &buf[0], buf.length, 0) != buf.length)
-                    {
-                        printf("A recv failed...\n");
-                        vTaskDelay(1);
-                    }
-                    m_fb[y, x] = buf[0] >= 0x80 ? Color.WHITE : Color.BLACK;
-                }
-
-            {
-                enum msg = "Image fully received\n";
-                int sent = send(sock, &msg[0], msg.length, 0);
-                assert(sent == msg.length);
-                if (sent != msg.length)
-                {
-                    printf("send failed, reconnecting...\n");
-                    continue outer_loop;
-                }
-                printf("Sent %ld bytes\n", sent);
-            }
-        }
     }
 }
 
@@ -172,11 +108,11 @@ extern(C) void app_main()
         vSyncPin: 26,
         ssid: "Zeus WPI",
         password: "zeusisdemax",
+        httpPort: 80,
     );
     auto tScherm = TScherm!ctConfig(rtConfig);
 
     tScherm.drawZeusImage;
-    tScherm.connectTCP;
 
     while (true)
     {

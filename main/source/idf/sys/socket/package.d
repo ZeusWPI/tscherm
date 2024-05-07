@@ -6,3 +6,4 @@ import core.internal.traits;
 @safe:
 
 ushort htons(ushort hostShort) @trusted => htonsCFunc(hostShort);
+uint htonl(uint hostInt) @trusted => htonlCFunc(hostInt);

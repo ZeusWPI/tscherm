@@ -167,3 +167,8 @@ out (ret; ret.get.length == s.length + 1)
     sz.get.setStringz(s);
     return sz.move;
 }
+
+bool startsWith(T)(in T[] a, in T[] b) pure
+{
+    return a.length >= b.length && a[0 .. b.length] == b;
+}

@@ -1,0 +1,63 @@
+module idfd.net.http;
+
+import idf.esp_common.esp_err : esp_err_t, ESP_ERROR_CHECK, ESP_OK, ESP_FAIL;
+import idf.esp_http_server : HTTP_GET, HTTPD_404_NOT_FOUND, httpd_config_t, HTTPD_DEFAULT_CONFIG, httpd_err_code_t, httpd_get_global_user_ctx, httpd_handle_t, httpd_register_err_handler, httpd_register_uri_handler, httpd_req_t, httpd_resp_send, httpd_resp_send_err, httpd_start, httpd_uri_match_wildcard, httpd_uri_t;
+import idf.stdio : printf;
+import idf.sys.socket : AF_INET, close, connect, htons, inet_pton, IPPROTO_IP, recv, send, SOCK_STREAM, sockaddr, sockaddr_in, socket;
+
+@safe:
+
+struct HttpServer
+{
+    private httpd_handle_t m_server;
+    private httpd_config_t m_config;
+
+    @disable this();
+
+    this(in ushort port)
+    {
+        m_config = HTTPD_DEFAULT_CONFIG();
+        // m_config.global_user_ctx = &this;
+        m_config.server_port = port;
+        m_config.keep_alive_enable = true;
+        m_config.keep_alive_idle = 5;
+        m_config.keep_alive_interval = 5;
+        m_config.keep_alive_count = 3;
+    }
+
+    void start() @trusted
+    {
+        printf("HttpServer: Starting on port %d\n", m_config.server_port);
+        ESP_ERROR_CHECK(httpd_start(&m_server, &m_config));
+
+        httpd_uri_t[1] handlers = [
+            {method: HTTP_GET, uri: "/hello", handler: &handleGetHello},
+        ];
+        foreach (ref handler; handlers)
+            httpd_register_uri_handler(m_server, &handler);
+
+        httpd_register_err_handler(m_server, HTTPD_404_NOT_FOUND, &handle404);
+    }
+
+    extern (C)
+    static esp_err_t handleGetHello(httpd_req_t* req) @trusted
+    {
+        // HttpServer* instance = cast(HttpServer*) httpd_get_global_user_ctx(req.handle);
+
+        string responseString = "Hello World\n";
+        printf("Sending %s", &responseString[0]);
+        httpd_resp_send(req, &responseString[0], responseString.length);
+        printf("Sent %s", &responseString[0]);
+
+        return ESP_OK;
+    }
+
+    extern (C)
+    static esp_err_t handle404(httpd_req_t* req, httpd_err_code_t err) @trusted
+    {
+        // HttpServer* instance = cast(HttpServer*) httpd_get_global_user_ctx(req.handle);
+
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "404 Not found");
+        return ESP_FAIL;
+    }
+}

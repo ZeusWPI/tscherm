@@ -16,8 +16,7 @@ template imported(string moduleName)
     mixin("import imported = " ~ moduleName ~ ";");
 }
 
-void destroy(bool initialize = true, T)(ref T obj)
-if (is(T == struct))
+void destroy(bool initialize = true, T)(ref T obj) if (is(T == struct))
 {
     import core.internal.destruction : destructRecurse;
 
@@ -26,13 +25,13 @@ if (is(T == struct))
     static if (initialize)
     {
         import core.internal.lifetime : emplaceInitializer;
+
         emplaceInitializer(obj); // emplace T.init
     }
 }
 
 /// ditto
-void destroy(bool initialize = true, T)(ref T obj)
-if (__traits(isStaticArray, T))
+void destroy(bool initialize = true, T)(ref T obj) if (__traits(isStaticArray, T))
 {
     foreach_reverse (ref e; obj[])
         destroy!initialize(e);
@@ -40,7 +39,8 @@ if (__traits(isStaticArray, T))
 
 /// ditto
 void destroy(bool initialize = true, T)(ref T obj)
-if (!is(T == struct) && !is(T == interface) && !is(T == class) && !__traits(isStaticArray, T))
+        if (!is(T == struct) && !is(T == interface) && !is(T == class) && !__traits(
+            isStaticArray, T))
 {
     static if (initialize)
         obj = T.init;
@@ -68,13 +68,28 @@ TTo[] __ArrayCast(TFrom, TTo)(return scope TFrom[] from) pure @trusted
         void* ptr;
     }
 
-    RawSlice* rawSlice = cast(RawSlice*) &from;
+    RawSlice* rawSlice = cast(RawSlice*)&from;
     rawSlice.length = fromLengthBytes / TTo.sizeof;
     return *(cast(TTo[]*) rawSlice);
 }
 
-extern(C) void _d_array_slice_copy(void* dst, size_t dstlen, void* src, size_t srclen, size_t elemsz) @trusted
+extern (C) void _d_array_slice_copy(void* dst, size_t dstlen, void* src, size_t srclen, size_t elemsz) @trusted
 {
     import ldc.intrinsics : llvm_memcpy;
+
     llvm_memcpy!size_t(dst, src, dstlen * elemsz, 0);
+}
+
+bool __equals(T1, T2)(in T1[] lhs, in T2[] rhs)
+{
+    if (lhs.length != rhs.length)
+        return false;
+
+    if (lhs.length == 0)
+        return true;
+
+    foreach (const i; 0 .. lhs.length)
+        if (lhs[i] != rhs[i])
+            return false;
+    return true;
 }
