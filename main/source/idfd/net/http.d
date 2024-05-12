@@ -1,15 +1,16 @@
-module idfd.net.http_alt;
+module idfd.net.http;
 
-import idf.errno : __errno, EAGAIN;
+import idf.errno : EAGAIN, errno;
 import idf.esp_timer : esp_timer_get_time;
 import idf.stdio : printf;
 import idf.stdlib : atoi;
 import idf.sys.socket : accept, AF_INET, bind, close, connect, htonl, htons, IPADDR_ANY, IPPROTO_IP, listen,
     MSG_DONTWAIT, recv, send, shutdown, SOCK_STREAM, sockaddr, sockaddr_in, socket, socklen_t;
 
-import idfd.util;
+import ministd.memory : dallocArray, UniqueHeapArray;
+import ministd.string : startsWith;
 
-@safe:
+@safe nothrow @nogc:
 
 struct HttpServer
 {
@@ -114,7 +115,7 @@ struct HttpServer
                             m_received = recv(m_socket, &m_buf.get[0], m_buf.get.length, MSG_DONTWAIT);
                             if (m_received > 0)
                                 break;
-                            if (m_received == 0 || (m_received < 0 && *__errno != EAGAIN))
+                            if (m_received == 0 || (m_received < 0 && errno != EAGAIN))
                             {
                                 m_isOpen = false;
                                 break;

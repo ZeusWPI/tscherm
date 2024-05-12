@@ -1,7 +1,7 @@
 module app.vga.video_timings;
 
 // dfmt off
-@safe:
+@safe nothrow @nogc:
 
 struct VideoTimings
 {

@@ -1,6 +1,6 @@
 module idfd.signalio.signal;
 
-@safe:
+@safe nothrow @nogc:
 
 struct Signal
 {

@@ -2,7 +2,7 @@ module idfd.signalio.gpio;
 
 import idfd.signalio.signal : Signal;
 
-@safe:
+@safe nothrow @nogc:
 
 struct GPIOPin
 {

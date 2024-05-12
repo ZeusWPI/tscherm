@@ -1,6 +1,5 @@
 module idfd.net.wifi_client;
 
-import idfd.util;
 import idfd.nvs_flash : initNvsFlash, nvsFlashInitialized;
 
 import idf.esp_common.esp_err : ESP_ERROR_CHECK;
@@ -18,7 +17,9 @@ import idf.esp_wifi : esp_wifi_connect, esp_wifi_start,
     WIFI_AUTH_OPEN, WIFI_AUTH_WEP, WIFI_MODE_STA, WIFI_IF_STA;
 import idf.stdio : printf;
 
-@safe:
+import ministd.string : setStringz;
+
+@safe nothrow @nogc:
 
 struct WiFiClient
 {

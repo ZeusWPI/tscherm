@@ -1,6 +1,6 @@
 module idf.esp_hw_support.port.soc.rtc;
 
-@safe:
+@safe nothrow @nogc:
 
 extern (C) @system
 {

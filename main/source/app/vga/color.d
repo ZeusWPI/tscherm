@@ -1,6 +1,6 @@
 module app.vga.color;
 
-@safe:
+@safe nothrow @nogc:
 // dfmt off
 
 struct Color

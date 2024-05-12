@@ -2,7 +2,6 @@ module idfd.signalio.i2s;
 
 import idfd.signalio.i2s_c_code : finishClockSetupCFunc, startTransmittingCFunc;
 import idfd.signalio.signal : Signal;
-import idfd.util;
 
 import idf.esp_hw_support.esp_private.periph_ctrl : periph_module_enable;
 import idf.esp_hw_support.port.soc.rtc : rtc_clk_apll_coeff_set, rtc_clk_apll_enable;
@@ -11,9 +10,11 @@ import idf.soc.gpio_sig_map : I2S0O_DATA_OUT0_IDX, I2S1O_DATA_OUT0_IDX;
 import idf.soc.i2s_struct : I2S0, I2S1, i2s_dev_t;
 import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE, periph_module_t;
 
+import ministd.memory : dallocArray, move, UniqueHeapArray;
+
 import ldc.attributes : optStrategy;
 
-@safe:
+@safe nothrow @nogc:
 
 __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 

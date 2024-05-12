@@ -5,19 +5,19 @@ import app.vga.dma_descriptor_ring : DMADescriptorRing;
 import app.vga.framebuffer : FrameBuffer;
 import app.vga.video_timings : VideoTimings, VIDEO_TIMINGS_320W_480H;
 
-import idfd.net.http_alt : HttpServer;
-import idfd.net.tcp : tcp_client;
+import idfd.net.http : HttpServer;
 import idfd.net.wifi_client : WiFiClient;
 import idfd.signalio.gpio : GPIOPin;
 import idfd.signalio.i2s : I2SSignalGenerator;
 import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
-import idfd.util;
 
 import idf.esp_rom.lldesc : lldesc_t;
 import idf.freertos : vTaskDelay, vTaskSuspend;
 import idf.heap.caps : MALLOC_CAP_DMA;
 import idf.stdio : printf;
+
+import ministd.memory : UniqueHeapArray;
 
 // dfmt off
 @safe:

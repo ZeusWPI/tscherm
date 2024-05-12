@@ -1,12 +1,12 @@
 module app.vga.dma_descriptor_ring;
 
-import idfd.util;
-
 import idf.esp_rom.lldesc : lldesc_t;
 import idf.heap.caps : MALLOC_CAP_DMA;
 
+import ministd.memory : dallocArrayCaps;
+
 // dfmt off
-@safe:
+@safe nothrow @nogc:
 
 struct DMADescriptorRing
 {
