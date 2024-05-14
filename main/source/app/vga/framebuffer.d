@@ -15,7 +15,7 @@ struct FrameBuffer
     private const VideoTimings m_vt;
     private Color[][] m_lineBuffers;
 
-    this(const VideoTimings vt)
+    this(in VideoTimings vt)
     {
         m_vt = vt;
         m_lineBuffers = dallocArray!(Color[])(m_vt.v.total);
@@ -50,13 +50,15 @@ struct FrameBuffer
         }
     }
 
-
     ~this()
     {
         foreach(lineBuffer; m_lineBuffers)
             dfree(lineBuffer);
         dfree(m_lineBuffers);
     }
+
+    uint activeWidth() const pure => m_vt.h.res;
+    uint activeHeight() const pure => m_vt.v.res;
 
     Color[][] linesWithSync() pure
     {
@@ -107,7 +109,7 @@ struct FrameBuffer
             foreach (x; 0 .. m_vt.h.res)
             {
                 auto index = mixin(indexFunc);
-                this[y][x] = colors[index % colors.length];
+                this[y, x] = colors[index % colors.length];
             }
     }
 

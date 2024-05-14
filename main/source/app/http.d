@@ -1,11 +1,14 @@
-module idfd.net.http;
+module app.http;
+
+import app.vga.draw : Drawer;
 
 import idf.errno : EAGAIN, errno;
 import idf.esp_timer : esp_timer_get_time;
-import idf.stdio : printf;
 import idf.stdlib : atoi;
 import idf.sys.socket : accept, AF_INET, bind, close, connect, htonl, htons, IPADDR_ANY, IPPROTO_IP, listen,
     MSG_DONTWAIT, recv, send, shutdown, SOCK_STREAM, sockaddr, sockaddr_in, socket, socklen_t;
+
+import idfd.log : Logger;
 
 import ministd.memory : dallocArray, UniqueHeapArray;
 import ministd.string : startsWith;
@@ -14,14 +17,18 @@ import ministd.string : startsWith;
 
 struct HttpServer
 {
+    private enum log = Logger!"HttpServer"();
+
     private ushort m_port;
     private int m_listenSocket;
     private long m_recvTimeoutUsecs;
+    private Drawer* m_drawer;
 
     @disable this();
 
-    this(ushort port, long recvTimeoutUsecs = 2_000_000)
+    this(Drawer* drawer, ushort port, long recvTimeoutUsecs = 2_000_000)
     {
+        m_drawer = drawer;
         m_port = port;
         m_recvTimeoutUsecs = recvTimeoutUsecs;
     }
@@ -46,7 +53,7 @@ struct HttpServer
             assert(listenResult == 0);
         }
 
-        printf("HttpServer listening on port %hd\n", m_port);
+        log.info!"listening on port %hd"(m_port);
 
         while (true)
         {
@@ -64,9 +71,9 @@ struct HttpServer
 
     void handleOurOnlyClient(int socket)
     {
-        printf("HttpServer.handleOurOnlyClient: Started\n");
+        log.info!"handleOurOnlyClient: Started";
         scope (exit)
-            printf("HttpServer.handleOurOnlyClient: Exited\n\n");
+            log.info!"handleOurOnlyClient: Exited\n";
 
         struct SocketReader(C = char) if (C.sizeof == 1)
         {
@@ -175,8 +182,8 @@ struct HttpServer
 
         void send408()
         {
-            printf("HttpServer.handleOurOnlyClient: Client took too long to send\n");
-            printf("HttpServer.handleOurOnlyClient: Sending 408\n");
+            log.warn!"handleOurOnlyClient: Client took too long to send";
+            log.warn!"handleOurOnlyClient: Sending 408";
             socketSend(
                 "HTTP/1.1 408 Request Timeout\r\n" ~
                     "Content-Type: text/plain\r\n" ~
@@ -196,7 +203,7 @@ struct HttpServer
         }
         else if (firstLine.startsWith("GET /hello"))
         {
-            printf("HttpServer.handleOurOnlyClient: Handling GET /hello\n");
+            log.info!"handleOurOnlyClient: Handling GET /hello";
             socketSend(
                 "HTTP/1.1 200 OK\r\n" ~
                     "Content-Type: text/plain\r\n" ~
@@ -207,7 +214,7 @@ struct HttpServer
         }
         else if (firstLine.startsWith("POST /message"))
         {
-            printf("HttpServer.handleOurOnlyClient: Handling POST /message\n");
+            log.info!"handleOurOnlyClient: Handling POST /message";
 
             int contentLength = -1;
             {
@@ -230,8 +237,7 @@ struct HttpServer
                         char[] numberString = line["Content-Length: ".length .. $ - (crlf ? 2 : 1)];
                         if (numberString.length > 3)
                         {
-                            printf(
-                                "HttpServer.handleOurOnlyClient: Message too long, sending 400\n");
+                            log.warn!"handleOurOnlyClient: Message too long, sending 400";
                             socketSend(
                                 "HTTP/1.1 400 Bad Request\r\n" ~
                                     "Content-Type: text/plain\r\n" ~
@@ -252,7 +258,7 @@ struct HttpServer
             }
             if (contentLength < 0)
             {
-                printf("HttpServer.handleOurOnlyClient: No Content-Length found, sending 400\n");
+                log.warn!"handleOurOnlyClient: No Content-Length found, sending 400";
                 socketSend("HTTP/1.1 400 Bad Request\r\n\r\n");
                 return;
             }
@@ -263,7 +269,7 @@ struct HttpServer
             {
                 if (r.empty)
                 {
-                    printf("HttpServer.handleOurOnlyClient: Body smaller than Content-Length\n");
+                    log.warn!"handleOurOnlyClient: Body smaller than Content-Length, sending 400";
                     socketSend("HTTP/1.1 400 Bad Request\r\n\r\n");
                     return;
                 }
@@ -272,13 +278,22 @@ struct HttpServer
                 r.popFront;
             }
 
-            printf("HttpServer.handleOurOnlyClient: Got body %s\n", &body[0]);
+            log.info!"handleOurOnlyClient: Got body %s"(&body[0]);
 
             socketSend("HTTP/1.1 204 No Content\r\n\r\n");
+
+            log.info!"handleOurOnlyClient: drawing text";
+            enum lineLength = 14;
+            while (body.length > lineLength)
+            {
+                m_drawer.appendText(body[0 .. lineLength]);
+                body = body[lineLength .. $];
+            }
+            m_drawer.appendText(body);
         }
         else
         {
-            printf("HttpServer.handleOurOnlyClient: Sending 404\n");
+            log.warn!"handleOurOnlyClient: Sending 404";
             socketSend(
                 "HTTP/1.1 404 Not Found\r\n" ~
                     "Content-Type: text/plain\r\n" ~

@@ -1,5 +1,6 @@
 module idfd.net.wifi_client;
 
+import idfd.log : Logger;
 import idfd.nvs_flash : initNvsFlash, nvsFlashInitialized;
 
 import idf.esp_common.esp_err : ESP_ERROR_CHECK;
@@ -15,7 +16,6 @@ import idf.esp_wifi : esp_wifi_connect, esp_wifi_start,
     esp_wifi_init, wifi_init_config_t, WIFI_INIT_CONFIG_DEFAULT,
     esp_wifi_set_mode, esp_wifi_set_config, wifi_config_t, wifi_sta_config_t,
     WIFI_AUTH_OPEN, WIFI_AUTH_WEP, WIFI_MODE_STA, WIFI_IF_STA;
-import idf.stdio : printf;
 
 import ministd.string : setStringz;
 
@@ -23,6 +23,8 @@ import ministd.string : setStringz;
 
 struct WiFiClient
 {
+    private enum log = Logger!"WifiClient"();
+
     private enum EventGroupBits : uint
     {
         CONNECTED = 1 << 0,
@@ -101,12 +103,12 @@ struct WiFiClient
         {
             if (eventId == WIFI_EVENT_STA_START)
             {
-                printf("Connecting to AP...\n"); // LOGI
+                log.info!"Connecting to AP...";
                 esp_wifi_connect;
             }
             else if (eventId == WIFI_EVENT_STA_DISCONNECTED)
             {
-                printf("Failed to connect to AP, retrying...\n"); // LOGW
+                log.warn!"Failed to connect to AP, retrying...";
                 esp_wifi_connect;
             }
         }
@@ -117,7 +119,7 @@ struct WiFiClient
                 ip_event_got_ip_t* event = cast(ip_event_got_ip_t*) eventData;
                 uint* ipPtr = &event.ip_info.ip.addr;
                 ubyte[] b = (cast(ubyte*) ipPtr)[0 .. 4];
-                printf("Connected with ip address: %d.%d.%d.%d\n", b[0], b[1], b[2], b[3]); // LOGI
+                log.info!"Connected with ip address: %d.%d.%d.%d"(b[0], b[1], b[2], b[3]);
 
                 // Notify waitForConnection via event group
                 xEventGroupSetBits(m_eventGroup, EventGroupBits.CONNECTED);

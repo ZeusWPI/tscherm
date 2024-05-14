@@ -8,5 +8,8 @@
     "d.neverUseDub": true,
     "d.projectImportPaths": [
         "./main/source"
-    ]
+    ],
+    "files.associations": {
+        "esp_timer.h": "c"
+    }
 }
