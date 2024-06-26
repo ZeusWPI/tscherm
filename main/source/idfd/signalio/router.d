@@ -23,22 +23,25 @@ struct Route
     private Type m_type;
     private Signal m_signal;
     private GPIOPin m_pin;
+    private bool m_inverted;
 
     @disable this();
 
-    private this(Type type, Signal signal, GPIOPin pin)
+    private this(Type type, Signal signal, GPIOPin pin, bool inverted)
     {
         m_type = type;
         m_signal = signal;
         m_pin = pin;
+        m_inverted = inverted;
     }
 
     Type type() pure const => m_type;
     Signal signal() pure const => m_signal;
     GPIOPin pin() pure const => m_pin;
+    bool inverted() pure const => m_inverted;
 }
 
-Route route(GPIOPin from, Signal to) @trusted
+Route route(GPIOPin from, Signal to, bool invert = false) @trusted
 in (from.supportsInput)
 {
     ulong* muxRegElementPtr = cast(ulong*) cast(void*) GPIO_PIN_MUX_REG[from.pin];
@@ -46,12 +49,12 @@ in (from.supportsInput)
 
     // TODO: catch esp_err_t of gpio_set_direction
     gpio_set_direction(cast(gpio_num_t) from.pin, cast(gpio_mode_t) GPIO_MODE_DEF_INPUT);
-    gpio_matrix_in(cast(uint) from.pin, cast(uint) to.signal, false);
+    gpio_matrix_in(cast(uint) from.pin, cast(uint) to.signal, invert);
 
-    return Route(Route.Type.FromPinToSignal, signal:to, pin:from);
+    return Route(Route.Type.FromPinToSignal, signal:to, pin:from, inverted:invert);
 }
 
-Route route(Signal from, GPIOPin to) @trusted
+Route route(Signal from, GPIOPin to, bool invert = false) @trusted
 in (to.supportsOutput)
 {
     ulong* muxRegElementPtr = cast(ulong*) cast(void*) GPIO_PIN_MUX_REG[to.pin];
@@ -59,7 +62,7 @@ in (to.supportsOutput)
 
     // TODO: catch esp_err_t of gpio_set_direction
     gpio_set_direction(cast(gpio_num_t) to.pin, cast(gpio_mode_t) GPIO_MODE_DEF_OUTPUT);
-    gpio_matrix_out(cast(uint) to.pin, cast(uint) from.signal, false, false);
+    gpio_matrix_out(cast(uint) to.pin, cast(uint) from.signal, invert, false);
 
-    return Route(Route.Type.FromPinToSignal, signal:from, pin:to);
+    return Route(Route.Type.FromPinToSignal, signal:from, pin:to, inverted:invert);
 }

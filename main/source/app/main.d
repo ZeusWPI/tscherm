@@ -41,9 +41,9 @@ struct TScherm(TSchermCTConfig ctConfig)
     private FrameBuffer m_fb;
     private DMADescriptorRing m_dmaDescriptorRing;
     private I2SSignalGenerator m_signalGenerator;
-    private Drawer m_drawer;
-    private WiFiClient m_wifiClient;
-    private HttpServer m_httpServer;
+    // private Drawer m_drawer;
+    // private WiFiClient m_wifiClient;
+    // private HttpServer m_httpServer;
 
     this(const TSchermRTConfig rtConfig)
     {
@@ -51,8 +51,8 @@ struct TScherm(TSchermCTConfig ctConfig)
 
         // Init network async
         {
-            m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
-            m_wifiClient.startAsync;
+            // m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
+            // m_wifiClient.startAsync;
         }
 
         // Init VGA
@@ -67,44 +67,48 @@ struct TScherm(TSchermCTConfig ctConfig)
             m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.linesWithSync)());
 
             UniqueHeapArray!Signal signals = m_signalGenerator.getSignals;
-            route(from: signals.get[0], to: GPIOPin(m_rtConfig.redPin));   // Red
-            route(from: signals.get[1], to: GPIOPin(m_rtConfig.greenPin)); // Green
-            route(from: signals.get[2], to: GPIOPin(m_rtConfig.bluePin));  // Blue
-            route(from: signals.get[6], to: GPIOPin(m_rtConfig.hSyncPin)); // HSync
-            route(from: signals.get[7], to: GPIOPin(m_rtConfig.vSyncPin)); // VSync
+            // route(from: signals.get[0], to: GPIOPin(m_rtConfig.redPin  ), invert: false); // Red
+            // route(from: signals.get[1], to: GPIOPin(m_rtConfig.greenPin), invert: false); // Green
+            // route(from: signals.get[2], to: GPIOPin(m_rtConfig.bluePin ), invert: false); // Blue
+            // route(from: signals.get[6], to: GPIOPin(m_rtConfig.hSyncPin), invert: false); // HSync
+            // route(from: signals.get[7], to: GPIOPin(m_rtConfig.vSyncPin), invert: false); // VSync
+
+            route(from: signals.get[0], to: GPIOPin(25), invert: false); // White
+            route(from: signals.get[6], to: GPIOPin(26), invert: true ); // CSync
 
             m_signalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-            m_drawer = Drawer(&m_fb);
+            // m_drawer = Drawer(&m_fb);
 
             log.info!"VGA initialization complete";
         }
 
         // Wait for async network init to complete
         {
-            m_wifiClient.waitForConnection;
+            // m_wifiClient.waitForConnection;
 
-            log.info!"Network initialization complete";
+            // log.info!"Network initialization complete";
         }
 
         {
-            m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
-            m_httpServer.start;
+            // m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
+            // m_httpServer.start;
         }
     }
 
-    void drawZeusImage()
+    void drawImage(string source)()
     {
-        immutable ubyte[] zeusImage = cast(immutable ubyte[]) import("zeus.raw");
-        m_fb.drawGrayscaleImage(zeusImage, Color.YELLOW, Color.BLACK);
+        immutable ubyte[] img = cast(immutable ubyte[]) import(source);
+        m_fb.drawGrayscaleImage(img, Color.YELLOW, Color.BLACK);
     }
 }
 
-extern(C) void app_main()
+extern(C)
+void app_main()
 {
     enum TSchermCTConfig ctConfig = TSchermCTConfig();
     const TSchermRTConfig rtConfig = TSchermRTConfig(
-        vt: VIDEO_TIMINGS_320W_480H,
+        vt: VIDEO_TIMINGS_640W_480H_MAC,
         redPin: 14,
         greenPin: 27,
         bluePin: 16,
@@ -116,7 +120,27 @@ extern(C) void app_main()
     );
     auto tScherm = TScherm!ctConfig(rtConfig);
 
-    tScherm.drawZeusImage;
+
+    while (true)
+    {
+        auto pause = (int t) @trusted => vTaskDelay(t);
+
+        tScherm.m_fb.fill(Color.WHITE);
+        pause(200);
+
+        tScherm.drawImage!"zeus.raw";
+        pause(800);
+        tScherm.drawImage!"reavershark.raw";
+        pause(800);
+
+        tScherm.m_fb.fillIteratingColorsDiagonal!"x+y/vDivide";
+        pause(200);
+        tScherm.m_fb.fillIteratingColorsDiagonal!"(x+y/vDivide) / 2";
+        pause(200);
+
+        tScherm.m_fb.fill(Color.BLACK);
+        pause(200);
+    }
 
     while (true)
     {

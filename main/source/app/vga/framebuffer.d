@@ -13,47 +13,67 @@ import ministd.memory : dallocArray, dallocArrayCaps, dfree;
 struct FrameBuffer
 {
     private const VideoTimings m_vt;
+    private Color[] m_lineBufferBlank;
+    private Color[] m_lineBufferVSync;
     private Color[][] m_lineBuffers;
+
+    int vDivide = 4;
 
     this(in VideoTimings vt)
     {
         m_vt = vt;
+        m_lineBufferBlank = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
+        m_lineBufferVSync = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
+
         m_lineBuffers = dallocArray!(Color[])(m_vt.v.total);
-        foreach (ref Color[] lineBuffer; m_lineBuffers)
-            lineBuffer = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
+
+        foreach (y; 0 .. m_lineBuffers.length)
+        {
+            if (m_vt.v.resStart <= y && y < m_vt.v.resEnd)
+            {
+                int i = (y - m_vt.v.resStart) % vDivide;
+                if (i == 0) 
+                    m_lineBuffers[y] = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
+                else
+                    m_lineBuffers[y] = m_lineBuffers[y - i];
+            }
+            else if (m_vt.v.syncStart <= y && y <= m_vt.v.syncEnd)
+                m_lineBuffers[y] = m_lineBufferVSync;
+            else
+                m_lineBuffers[y] = m_lineBufferBlank;
+        }
 
         fullClear;
     }
 
     void fullClear()
     {
-        foreach (y; 0 .. m_vt.v.total)
+        m_lineBufferBlank[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK;
+        m_lineBufferBlank[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.CSYNC;
+        m_lineBufferBlank[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK;
+        m_lineBufferBlank[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLANK;
+
+        m_lineBufferVSync[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.CSYNC;
+        m_lineBufferVSync[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.BLANK;
+        m_lineBufferVSync[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.CSYNC;
+        m_lineBufferVSync[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.CSYNC;
+
+        for (size_t y = m_vt.v.resStart; y < m_vt.v.resEnd; y += vDivide)
         {
             Color[] line = m_lineBuffers[y][0 .. m_vt.h.total];
-
-            if (y < m_vt.v.resEnd)
-            {
-                line[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLACK;
-                line[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK;
-                line[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.BLANK | Color.HSYNC;
-                line[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK;
-            }
-            else
-            {
-                const bool inVSync = m_vt.v.syncStart <= y && y < m_vt.v.syncEnd;
-                const Color vSync = inVSync ? Color.VSYNC : Color.BLANK;
-                line[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLANK | vSync;
-                line[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK | vSync;
-                line[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.BLANK | vSync | Color.HSYNC;
-                line[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK | vSync;
-            }
+            line[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK;
+            line[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.CSYNC;
+            line[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK;
+            line[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLACK;
         }
     }
 
     ~this()
     {
-        foreach(lineBuffer; m_lineBuffers)
-            dfree(lineBuffer);
+        for (size_t y = m_vt.v.resStart; y < m_vt.v.resEnd; y += vDivide)
+            dfree(m_lineBuffers[y]);
+        dfree(m_lineBufferBlank);
+        dfree(m_lineBufferVSync);
         dfree(m_lineBuffers);
     }
 
@@ -92,20 +112,19 @@ struct FrameBuffer
 
     void fill(Color color) pure
     {
-        foreach (y; 0 .. m_vt.v.res)
+        for (size_t y = 0; y < m_vt.v.res; y += vDivide)
             getLine(y)[] = color;
     }
 
     void clear() pure => fill(Color.BLACK);
 
-    void fillIteratingColorsDiagonal(string indexFunc = "x+y")()
+    void fillIteratingColorsDiagonal(string indexFunc = "x+y/vDivide")()
     {
         immutable Color[] colors = [
-            Color.BLACK, Color.RED, Color.GREEN, Color.BLUE,
-            Color.YELLOW, Color.MAGENTA, Color.CYAN, Color.WHITE,
+            Color.WHITE, Color.BLACK,
         ];
 
-        foreach (y; 0 .. m_vt.v.res)
+        for (size_t y = 0; y < m_vt.v.res; y += vDivide)
             foreach (x; 0 .. m_vt.h.res)
             {
                 auto index = mixin(indexFunc);
@@ -120,11 +139,11 @@ struct FrameBuffer
     )
     in(image.length == m_vt.v.res * m_vt.h.res)
     {
-        foreach (y; 0 .. m_vt.v.res)
+        for (size_t y = 0; y < m_vt.v.res; y += vDivide)
             foreach (x; 0 .. m_vt.h.res)
             {
                 ubyte imageByte = image[m_vt.h.res * y + x];
-                this[y, x] = imageByte > 0x80 ? whiteColor : blackColor;
+                this[y, x] = imageByte > 0x40 ? whiteColor : blackColor;
             }
     }
 }

@@ -19,6 +19,7 @@ struct Color
     enum Color BLANK   = BLACK;
     enum Color HSYNC   = Color(1 << 6);
     enum Color VSYNC   = Color(1 << 7);
+    enum Color CSYNC   = HSYNC | VSYNC;
 
     alias m_value this;
 
