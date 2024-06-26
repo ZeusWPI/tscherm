@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-convert -resize '320x480!' $1 png:- | stream -map r -storage-type char png:- $2
+echo Showing preview...
+convert -resize '640x480!' $1 png:- | feh -
+convert -resize '640x480!' $1 png:- | stream -map r -storage-type char png:- $2
