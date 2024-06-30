@@ -15,8 +15,6 @@ ulimit -n 4096 && \
 bash \
 "
 
-set +x
-
 docker run $DOCKER_RUN_ARGS $IMAGE bash -c "${INIT_SCRIPT}"
 
 sudo chown -R $UID .
