@@ -1,15 +1,10 @@
 {
-    "dscanner.ignoredKeys": [
-        "dscanner.suspicious.redundant_attributes"
-    ],
+    "d.dubCompiler": "/opt/ldc-xtensa/bin/ldc2",
     "d.stdlibPath": [
         "/opt/ldc-xtensa/include/d"
     ],
-    "d.neverUseDub": true,
-    "d.projectImportPaths": [
-        "./main/source"
-    ],
-    "files.associations": {
-        "esp_timer.h": "c"
-    }
+    "d.scanAllFolders": false,
+    "d.extraRoots": [
+        "main"
+    ]
 }
