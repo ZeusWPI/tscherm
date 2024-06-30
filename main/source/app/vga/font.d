@@ -1,8 +1,8 @@
 module app.vga.font;
 
-import std.traits : isSomeChar, Unqual;
+import ministd.traits : isSomeChar, Unqual;
 
-@safe:
+@safe nothrow @nogc:
 
 struct Font(string ignore)
 {
@@ -15,7 +15,9 @@ struct Font(string ignore)
     alias GlyphType = ubyte[glyphWidth][glyphHeight];
     enum ImageType image = cast(ImageType) import(imagePath)[0 .. imageLength];
 
-    GlyphType opIndex(C)(C c) const pure
+pure const:
+
+    GlyphType opIndex(C)(C c)
     if (isSomeChar!C)
     {
         if (c < ' ' || '~' < c)
@@ -24,7 +26,7 @@ struct Font(string ignore)
         return this[index];
     }
 
-    GlyphType opIndex(I)(I i) const pure
+    GlyphType opIndex(I)(I i)
     if (!isSomeChar!I)
     in (i < glyphCount)
     {
@@ -36,5 +38,4 @@ struct Font(string ignore)
             ret[y] = image[y][imageXBegin .. imageXEnd];
         return ret;
     }
-
 }

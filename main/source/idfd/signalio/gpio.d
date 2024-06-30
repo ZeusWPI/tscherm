@@ -19,7 +19,10 @@ struct GPIOPin
         m_pin = pin;
     }
 
-    uint pin() pure const => m_pin;
-    bool supportsInput() pure const => true;
-    bool supportsOutput() pure const => pin <= 33;
+    pure const
+    {
+        uint pin() => m_pin;
+        bool supportsInput() => true;
+        bool supportsOutput() => pin <= 33;
+    }
 }

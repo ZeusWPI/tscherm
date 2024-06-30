@@ -5,7 +5,7 @@ import app.vga.video_timings : VideoTimings;
 
 import idf.heap.caps : MALLOC_CAP_DMA;
 
-import ministd.memory : dallocArray, dallocArrayCaps, dfree;
+import ministd.heap_caps : dallocArrayCaps;
 
 // dfmt off
 @safe nothrow @nogc:

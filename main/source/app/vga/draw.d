@@ -8,7 +8,7 @@ import idfd.log : Logger;
 
 import std.traits : isInstanceOf;
 
-@safe:
+@safe nothrow @nogc:
 
 struct Box
 {

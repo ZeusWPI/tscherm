@@ -3,7 +3,7 @@ module app.vga.dma_descriptor_ring;
 import idf.esp_rom.lldesc : lldesc_t;
 import idf.heap.caps : MALLOC_CAP_DMA;
 
-import ministd.memory : dallocArrayCaps;
+import ministd.heap_caps : dallocArrayCaps;
 
 // dfmt off
 @safe nothrow @nogc:

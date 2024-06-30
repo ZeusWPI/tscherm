@@ -3,7 +3,9 @@ module idfd.log;
 import idf.log;
 import idf.sdkconfig;
 
-import std.traits : ReturnType, Unqual;
+import ministd.traits : Unqual;
+
+import std.traits : ReturnType;
 
 @safe nothrow @nogc:
 

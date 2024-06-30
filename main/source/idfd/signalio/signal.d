@@ -4,14 +4,15 @@ module idfd.signalio.signal;
 
 struct Signal
 {
-    uint m_signal;
-
-    @disable this();
+    private uint m_signal;
 
     this(uint signal)
     {
         m_signal = signal;
     }
 
-    uint signal() pure const => m_signal;
+    pure const
+    {
+        uint signal() => m_signal;
+    }
 }

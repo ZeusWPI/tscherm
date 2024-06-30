@@ -27,7 +27,8 @@ struct Route
 
     @disable this();
 
-    private this(Type type, Signal signal, GPIOPin pin, bool inverted)
+    private
+    this(Type type, Signal signal, GPIOPin pin, bool inverted)
     {
         m_type = type;
         m_signal = signal;
@@ -35,34 +36,43 @@ struct Route
         m_inverted = inverted;
     }
 
-    Type type() pure const => m_type;
-    Signal signal() pure const => m_signal;
-    GPIOPin pin() pure const => m_pin;
-    bool inverted() pure const => m_inverted;
+    pure const
+    {
+        Type type() => m_type;
+        Signal signal() => m_signal;
+        GPIOPin pin() => m_pin;
+        bool inverted() => m_inverted;
+    }
 }
 
 Route route(GPIOPin from, Signal to, bool invert = false) @trusted
 in (from.supportsInput)
 {
     ulong* muxRegElementPtr = cast(ulong*) cast(void*) GPIO_PIN_MUX_REG[from.pin];
-    *muxRegElementPtr = (*muxRegElementPtr & ~(MCU_SEL_V << MCU_SEL_S)) | ((PIN_FUNC_GPIO & MCU_SEL_V) << MCU_SEL_S);
+    *muxRegElementPtr = (*muxRegElementPtr & ~(MCU_SEL_V << MCU_SEL_S)) | (
+        (PIN_FUNC_GPIO & MCU_SEL_V) << MCU_SEL_S);
 
     // TODO: catch esp_err_t of gpio_set_direction
     gpio_set_direction(cast(gpio_num_t) from.pin, cast(gpio_mode_t) GPIO_MODE_DEF_INPUT);
     gpio_matrix_in(cast(uint) from.pin, cast(uint) to.signal, invert);
 
+    // dfmt off
     return Route(Route.Type.FromPinToSignal, signal:to, pin:from, inverted:invert);
+    // dfmt on
 }
 
 Route route(Signal from, GPIOPin to, bool invert = false) @trusted
 in (to.supportsOutput)
 {
     ulong* muxRegElementPtr = cast(ulong*) cast(void*) GPIO_PIN_MUX_REG[to.pin];
-    *muxRegElementPtr = (*muxRegElementPtr & ~(MCU_SEL_V << MCU_SEL_S)) | ((PIN_FUNC_GPIO & MCU_SEL_V) << MCU_SEL_S);
+    *muxRegElementPtr = (*muxRegElementPtr & ~(MCU_SEL_V << MCU_SEL_S)) | (
+        (PIN_FUNC_GPIO & MCU_SEL_V) << MCU_SEL_S);
 
     // TODO: catch esp_err_t of gpio_set_direction
     gpio_set_direction(cast(gpio_num_t) to.pin, cast(gpio_mode_t) GPIO_MODE_DEF_OUTPUT);
     gpio_matrix_out(cast(uint) to.pin, cast(uint) from.signal, invert, false);
 
-    return Route(Route.Type.FromPinToSignal, signal:from, pin:to, inverted:invert);
+    // dfmt off
+    return Route(Route.Type.FromSignalToPin, signal:from, pin:to, inverted:invert);
+    // dfmt on
 }

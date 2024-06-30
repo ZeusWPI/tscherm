@@ -16,7 +16,7 @@ import idfd.signalio.i2s : I2SSignalGenerator;
 import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
-import ministd.memory : UniqueHeapArray;
+import ministd.typecons : UniqueHeapArray;
 
 // dfmt off
 @safe:

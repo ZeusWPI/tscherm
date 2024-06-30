@@ -3,10 +3,6 @@ module app.vga.framebuffer_simple;
 import app.vga.color : Color;
 import app.vga.video_timings : VideoTimings;
 
-import idf.heap.caps : MALLOC_CAP_DMA;
-
-import ministd.memory : dallocArray, dallocArrayCaps, dfree;
-
 // dfmt off
 @safe nothrow @nogc:
 

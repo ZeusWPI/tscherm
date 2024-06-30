@@ -10,8 +10,8 @@ import idf.sys.socket : accept, AF_INET, bind, close, connect, htonl, htons, IPA
 
 import idfd.log : Logger;
 
-import ministd.memory : dallocArray, UniqueHeapArray;
 import ministd.string : startsWith;
+import ministd.typecons : UniqueHeapArray;
 
 @safe nothrow @nogc:
 
@@ -92,23 +92,24 @@ struct HttpServer
             {
                 m_socket = socket;
                 m_recvTimeoutUsecs = recvTimeoutUsecs;
-                m_buf = dallocArray!C(1024);
+                m_buf = typeof(m_buf).create(1024);
             }
 
-            C front() const pure
+            pure
+            C front() const
             in (m_calledEmpty && m_isOpen)
-            {
-                return m_buf.get[m_currIndex];
-            }
+                => m_buf.get[m_currIndex];
 
-            void popFront() pure
+            pure
+            void popFront()
             in (m_calledEmpty && m_isOpen)
             {
                 m_currIndex++;
                 m_calledEmpty = false;
             }
 
-            bool empty() @trusted
+            @trusted
+            bool empty()
             {
                 m_calledEmpty = true;
 
@@ -145,7 +146,8 @@ struct HttpServer
                 return !m_isOpen;
             }
 
-            bool timedOut() const pure => m_timedOut;
+            pure
+            bool timedOut() const => m_timedOut;
 
             C[] readLine(scope C[] buf)
             {
@@ -164,7 +166,8 @@ struct HttpServer
 
         auto r = SocketReader!char(socket, m_recvTimeoutUsecs);
 
-        void socketSend(C)(C[] data) @trusted
+        @trusted
+        void socketSend(C)(C[] data)
         {
             // TODO: timeout
             int totalSent;
@@ -193,7 +196,7 @@ struct HttpServer
             );
         }
 
-        UniqueHeapArray!char firstLineBuf = dallocArray!char(64);
+        auto firstLineBuf = UniqueHeapArray!char.create(64);
         char[] firstLine = r.readLine(firstLineBuf.get);
 
         if (r.timedOut)
@@ -218,7 +221,7 @@ struct HttpServer
 
             int contentLength = -1;
             {
-                UniqueHeapArray!char headerLineBuf = dallocArray!char(256);
+                auto headerLineBuf = UniqueHeapArray!char.create(256);
                 while (true)
                 {
                     char[] line = r.readLine(headerLineBuf.get);
@@ -263,7 +266,7 @@ struct HttpServer
                 return;
             }
 
-            UniqueHeapArray!char bodyBuf = dallocArray!char(1024);
+            auto bodyBuf = UniqueHeapArray!char.create(1024);
             char[] body;
             while (body.length != contentLength)
             {

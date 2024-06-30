@@ -10,9 +10,9 @@ import idf.soc.gpio_sig_map : I2S0O_DATA_OUT0_IDX, I2S1O_DATA_OUT0_IDX;
 import idf.soc.i2s_struct : I2S0, I2S1, i2s_dev_t;
 import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE, periph_module_t;
 
-import ministd.memory : dallocArray, move, UniqueHeapArray;
-
 import ldc.attributes : optStrategy;
+
+import ministd.typecons : UniqueHeapArray;
 
 @safe nothrow @nogc:
 
@@ -52,7 +52,8 @@ struct I2SSignalGenerator
         reset;
     }
 
-    private void enable()
+    private
+    void enable()
     {
         immutable periph_module_t[] modules = [
             PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE
@@ -61,7 +62,8 @@ struct I2SSignalGenerator
         (() @trusted => periph_module_enable(m))();
     }
 
-    private void reset() pure
+    private pure
+    void reset()
     {
         m_i2sDev.lc_conf.val |= 0xF;
         m_i2sDev.lc_conf.val &= ~0xF;
@@ -72,7 +74,8 @@ struct I2SSignalGenerator
         }
     }
 
-    private void setupParallelOutput() pure
+    private pure
+    void setupParallelOutput()
     {
         // Set parallel mode flags
         m_i2sDev.conf2.val = 0;
@@ -87,7 +90,8 @@ struct I2SSignalGenerator
         m_i2sDev.conf.tx_short_sync = 0;
     }
 
-    private void setupClock(long freq)
+    private
+    void setupClock(long freq)
     {
         m_i2sDev.sample_rate_conf.val = 0;
         m_i2sDev.sample_rate_conf.tx_bits_mod = m_bitCount;
@@ -113,7 +117,8 @@ struct I2SSignalGenerator
         (() @trusted => finishClockSetupCFunc(m_i2sDev))();
     }
 
-    private void prepareForTransmitting() pure
+    private pure
+    void prepareForTransmitting()
     {
         m_i2sDev.fifo_conf.val = 0;
         m_i2sDev.fifo_conf.tx_fifo_mod_force_en = 1;
@@ -132,10 +137,19 @@ struct I2SSignalGenerator
         m_i2sDev.timing.val = 0;
     }
 
-    // Todo: Should return refcounted
+    /** 
+     * Params:
+     *   firstDescriptor = Pointer to a lldesc_t of which the next ptr can be followed infinitely.
+     */
+    @trusted
+    void startTransmitting(lldesc_t* firstDescriptor)
+    {
+        startTransmittingCFunc(m_i2sDev, firstDescriptor);
+    }
+
     UniqueHeapArray!Signal getSignals() const
     {
-        Signal[] signals = dallocArray!Signal(m_bitCount);
+        auto signals = UniqueHeapArray!Signal.create(m_bitCount);
 
         foreach (i, ref signal; signals)
         {
@@ -154,15 +168,7 @@ struct I2SSignalGenerator
                 break;
             }
         }
-        return UniqueHeapArray!Signal(move(signals));
-    }
 
-    /** 
-     * Params:
-     *   firstDescriptor = Pointer to a lldesc_t of which the next ptr can be followed infinitely.
-     */
-    void startTransmitting(lldesc_t* firstDescriptor) @trusted
-    {
-        startTransmittingCFunc(m_i2sDev, firstDescriptor);
+        return signals;
     }
 }
