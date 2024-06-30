@@ -6,7 +6,7 @@ import app.vga.framebuffer : FrameBuffer;
 
 import idfd.log : Logger;
 
-import std.traits : isInstanceOf;
+import ministd.traits : isInstanceOf;
 
 @safe nothrow @nogc:
 
