@@ -1,3 +1,4 @@
 name "main"
 targetType "library"
 buildRequirements "allowWarnings"
+dependency "nobetterc" version="~master" repository="git+https://github.com/Reavershark/nobetterc"

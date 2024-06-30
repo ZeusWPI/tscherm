@@ -2,6 +2,8 @@
 
 set -e
 
+componentName=$(basename "${PWD}")
+
 # Config
 DFLAGS+=" --linkonce-templates"
 DFLAGS+=" --preview=in"
@@ -14,7 +16,12 @@ DFLAGS+=" --release --O3 --boundscheck=off"
 DFLAGS+=" $(cd "$(dirname "${BASH_SOURCE[0]}")" && dflags.py)"
 export DFLAGS
 
-dub build \
-    --build=plain \
-    --cache=local \
-    --color=always
+# Build static libraries the project and each dependency
+dub build --build=plain --deep --color=always
+
+# Get built static library locations
+artifacts=$(dub describe --build=plain | jq -r '.targets[].cacheArtifactPath')
+
+# Combine artifacts
+rm "lib${componentName}.a"
+ar -rcT "lib${componentName}.a" $artifacts

@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 
-[[ -e /dev/ttyUSB0 ]] && DEVICE_FLAG="--device=/dev/ttyUSB0"
+DOCKER_RUN_ARGS=""
+DOCKER_RUN_ARGS+=" --rm"
+DOCKER_RUN_ARGS+=" -it"
+DOCKER_RUN_ARGS+=" --volume=${PWD}:/work"
+[[ -e /dev/ttyUSB0 ]] && DOCKER_RUN_ARGS+=" --device=/dev/ttyUSB0"
 
-docker run \
-    --rm \
-    --interactive --tty \
-    --volume="${PWD}":/work \
-    $DEVICE_FLAG \
-    jmeeuws/esp-dlang \
-    bash -c " \
-        echo Sourcing /opt/esp-idf/export.sh && \
-        source /opt/esp-idf/export.sh >/dev/null && \
-        ulimit -n 4096 && \
-        \$SHELL \
-    "
+IMAGE="jmeeuws/esp-dlang:latest"
+
+INIT_SCRIPT=" \
+echo Installing jq && apt-get update && apt-get -y install jq && \
+echo Sourcing /opt/esp-idf/export.sh && source /opt/esp-idf/export.sh >/dev/null && \
+ulimit -n 4096 && \
+bash \
+"
+
+set +x
+
+docker run $DOCKER_RUN_ARGS $IMAGE bash -c "${INIT_SCRIPT}"
+
 sudo chown -R $UID .
