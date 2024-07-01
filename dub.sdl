@@ -1,0 +1,5 @@
+name "tscherm_root"
+
+targetType "sourceLibrary"
+
+dependency "tscherm" version="*" path="main"

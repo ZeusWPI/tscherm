@@ -3,8 +3,5 @@
     "d.stdlibPath": [
         "/opt/ldc-xtensa/include/d"
     ],
-    "d.scanAllFolders": false,
-    "d.extraRoots": [
-        "main"
-    ]
+    "d.disabledRootGlobs": ["/"]
 }
