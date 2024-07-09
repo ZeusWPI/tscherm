@@ -12,8 +12,9 @@ add_custom_target(
     "${COMPONENT_NAME}_dcode" ALL
     dub build --deep --color=always --arch=xtensa-esp32
     WORKING_DIRECTORY "${COMPONENT_DIR}"
-    BYPRODUCTS "${COMPONENT_DIR}/lib${COMPONENT_NAME}.a"
+    BYPRODUCTS "${COMPONENT_DIR}/component.a"
     USES_TERMINAL
 )
-target_link_libraries(${COMPONENT_LIB} PRIVATE "${COMPONENT_DIR}/lib${COMPONENT_NAME}.a")
-target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,--start-group") # Allow .a file order
+target_link_libraries(${COMPONENT_LIB} PRIVATE "${COMPONENT_DIR}/component.a")
+target_link_options(${COMPONENT_LIB} INTERFACE "-Wl,--start-group") # Allow .a files in any order
+target_link_options(${COMPONENT_LIB} INTERFACE "-znoexecstack")

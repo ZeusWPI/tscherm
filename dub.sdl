@@ -1,5 +1,3 @@
+// Prevents serve-d from panicking (issue #374)
 name "tscherm_root"
-
 targetType "sourceLibrary"
-
-dependency "tscherm" version="*" path="main"

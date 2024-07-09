@@ -1,7 +1,7 @@
 {
     "d.dubCompiler": "/opt/ldc-xtensa/bin/ldc2",
+    "d.dubArchType": "xtensa-esp32",
     "d.stdlibPath": [
         "/opt/ldc-xtensa/include/d"
     ],
-    "d.disabledRootGlobs": ["/"]
 }

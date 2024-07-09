@@ -187,4 +187,4 @@ dflags \
     \
     "-P-I${HOME}/.espressif/tools/xtensa-esp-elf/esp-13.2.0_20230928/xtensa-esp-elf/xtensa-esp-elf/include"
 
-postBuildCommands "dub describe --arch=xtensa-esp32 | jq -r '.targets[].cacheArtifactPath' | xargs ar -rcT libmain.a"
+postBuildCommands "dub describe --data=linker-files | xargs ar -rcT component.a libtscherm.a"
