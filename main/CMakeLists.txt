@@ -10,7 +10,7 @@ idf_component_register(
 # Code below is the same for every d component
 add_custom_target(
     "${COMPONENT_NAME}_dcode" ALL
-    dub build --deep --color=always --arch=xtensa-esp32
+    dub build --deep --force --color=always --arch=xtensa-esp32 --build=$<IF:$<BOOL:${CONFIG_COMPILER_OPTIMIZATION_PERF}>,release,debug>
     WORKING_DIRECTORY "${COMPONENT_DIR}"
     BYPRODUCTS "${COMPONENT_DIR}/component.a"
     USES_TERMINAL
