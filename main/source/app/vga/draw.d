@@ -12,12 +12,12 @@ import ministd.traits : isInstanceOf;
 
 struct Box
 {
-    uint x1, x2, y1, y2;
+    size_t x1, x2, y1, y2;
 
     bool valid() const pure => x1 < x2 && y1 < y2;
 
-    uint width() const pure => x2 - x1;
-    uint height() const pure => y2 - y1;
+    size_t width() const pure => x2 - x1;
+    size_t height() const pure => y2 - y1;
 }
 
 struct Drawer
@@ -26,7 +26,7 @@ struct Drawer
 
     private FrameBuffer* m_fb;
     private Color m_backgroundColor;
-    private uint m_separatorX;
+    private size_t m_separatorX;
     private Color m_separatorColor;
     private Color m_textColor;
 
@@ -69,7 +69,7 @@ struct Drawer
 
     private void scrollBoxDown(
         in Box box,
-        uint amount, const Color background,
+        size_t amount, const Color background,
     )
     in (box.valid)
     in (box.x2 <= m_fb.activeWidth)
@@ -105,7 +105,7 @@ struct Drawer
         foreach (i, const c; text)
         {
             auto glyph = font[c];
-            uint xOffset = i * font.glyphWidth;
+            size_t xOffset = i * font.glyphWidth;
             foreach (y; 0 .. font.glyphHeight)
                 foreach (x; 0 .. font.glyphWidth)
                 {

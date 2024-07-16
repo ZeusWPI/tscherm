@@ -20,7 +20,7 @@ __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 
 struct I2SSignalGenerator
 {
-@optStrategy("none"):
+@optStrategy("none") :
     private uint m_i2sIndex;
     private i2s_dev_t* m_i2sDev;
     private uint m_bitCount;
@@ -156,15 +156,15 @@ struct I2SSignalGenerator
             final switch (m_i2sIndex)
             {
             case 0:
-                immutable int baseIndex = I2S0O_DATA_OUT0_IDX;
-                signal = Signal(baseIndex + 24 - m_bitCount + i);
+                immutable uint baseIndex = I2S0O_DATA_OUT0_IDX;
+                signal = Signal(baseIndex + 24 - m_bitCount + cast(uint) i);
                 break;
             case 1:
-                immutable int baseIndex = I2S1O_DATA_OUT0_IDX;
+                immutable uint baseIndex = I2S1O_DATA_OUT0_IDX;
                 if (m_bitCount == 16)
-                    signal = Signal(baseIndex + 8 + i);
+                    signal = Signal(baseIndex + 8 + cast(uint) i);
                 else
-                    signal = Signal(baseIndex + i);
+                    signal = Signal(baseIndex + cast(uint) i);
                 break;
             }
         }

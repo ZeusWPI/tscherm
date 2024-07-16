@@ -30,8 +30,8 @@ pure const:
     if (!isSomeChar!I)
     in (i < glyphCount)
     {
-        const uint imageXBegin = i * glyphWidth;
-        const uint imageXEnd = imageXBegin + glyphWidth;
+        const size_t imageXBegin = i * glyphWidth;
+        const size_t imageXEnd = imageXBegin + glyphWidth;
 
         GlyphType ret;
         foreach (const y; 0 .. glyphHeight)

@@ -48,8 +48,8 @@ struct DMADescriptorRing
         foreach (i, ref descriptor; m_descriptors)
         {
             ubyte[] buf = buffers[i];
-            descriptor.length = buf.length;
-            descriptor.size = buf.length;
+            descriptor.length = cast(uint) buf.length;
+            descriptor.size = cast(uint) buf.length;
             descriptor.buf = cast(ubyte*) &buf[0];
         }
     }

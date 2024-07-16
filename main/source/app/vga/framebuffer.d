@@ -31,7 +31,7 @@ struct FrameBuffer
         {
             if (m_vt.v.resStart <= y && y < m_vt.v.resEnd)
             {
-                int i = (y - m_vt.v.resStart) % vDivide;
+                size_t i = (y - m_vt.v.resStart) % vDivide;
                 if (i == 0) 
                     m_lineBuffers[y] = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
                 else
@@ -77,33 +77,33 @@ struct FrameBuffer
         dfree(m_lineBuffers);
     }
 
-    uint activeWidth() const pure => m_vt.h.res;
-    uint activeHeight() const pure => m_vt.v.res;
+    size_t activeWidth() const pure => m_vt.h.res;
+    size_t activeHeight() const pure => m_vt.v.res;
 
     Color[][] linesWithSync() pure
     {
         return m_lineBuffers;
     }
 
-    Color[] getLineWithSync(in uint y) pure
+    Color[] getLineWithSync(in size_t y) pure
     in (y < m_vt.v.total)
     {
         return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
     }
 
-    Color[] getLine(in uint y) pure
+    Color[] getLine(in size_t y) pure
     in (y < m_vt.v.res)
     {
         return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
     }
 
-    Color[] opIndex(in uint y) pure
+    Color[] opIndex(in size_t y) pure
     in (y < m_vt.v.res)
     {
         return getLine(y);
     }
 
-    ref Color opIndex(in uint y, in uint x) pure
+    ref Color opIndex(in size_t y, in size_t x) pure
     in (y < m_vt.v.res)
     in (x < m_vt.h.res)
     {
