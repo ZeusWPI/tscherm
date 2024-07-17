@@ -5,7 +5,6 @@ targetType "staticLibrary"
 
 dependency "nobetterc" version="~master" repository="git+https://github.com/Reavershark/nobetterc"
 
-//subconfiguration "nobetterc" "esp32"
 subconfiguration "nobetterc" "minimal"
 
 
@@ -246,6 +245,4 @@ dflags \
 configuration "esp32" {
     dflags "-P-D__XTENSA__"
     dflags "-P-I${HOME}/.espressif/tools/xtensa-esp32-elf/esp-2021r2-patch5-8.4.0/xtensa-esp32-elf/xtensa-esp32-elf/include"
-    // Also set --mcpu
-    dflags "--mcpu=esp32"
 }
