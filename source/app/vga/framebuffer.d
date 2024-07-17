@@ -5,6 +5,8 @@ import app.vga.video_timings : VideoTimings;
 
 import idf.heap.caps : MALLOC_CAP_DMA;
 
+import idfd.log : Logger;
+
 import ministd.heap_caps : dallocArrayCaps;
 
 // dfmt off
@@ -12,6 +14,8 @@ import ministd.heap_caps : dallocArrayCaps;
 
 struct FrameBuffer
 {
+    enum log = Logger!"FrameBuffer"();
+
     private const VideoTimings m_vt;
     private Color[] m_lineBufferBlank;
     private Color[] m_lineBufferVSync;
@@ -22,6 +26,7 @@ struct FrameBuffer
     this(in VideoTimings vt)
     {
         m_vt = vt;
+
         m_lineBufferBlank = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
         m_lineBufferVSync = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
 

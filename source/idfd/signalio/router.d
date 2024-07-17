@@ -5,8 +5,7 @@ import idfd.signalio.signal : Signal;
 
 import idf.esp_driver_gpio.gpio : gpio_set_direction;
 import idf.esp_rom.gpio : gpio_matrix_in, gpio_matrix_out;
-import idf.hal.gpio_types : GPIO_MODE_DEF_INPUT, GPIO_MODE_DEF_OUTPUT, gpio_mode_t;
-import idf.soc.gpio_num : gpio_num_t;
+import idf.hal.gpio_types : GPIO_MODE_DEF_INPUT, GPIO_MODE_DEF_OUTPUT, gpio_mode_t, gpio_num_t;
 import idf.soc.gpio_periph : GPIO_PIN_MUX_REG;
 import idf.soc.io_mux_reg : MCU_SEL_S, MCU_SEL_V, PIN_FUNC_GPIO;
 

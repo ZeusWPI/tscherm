@@ -57,6 +57,8 @@ struct TScherm(TSchermCTConfig ctConfig)
 
         // Init VGA
         {
+            log.info!"initializing VGA";
+
             m_fb = FrameBuffer(m_rtConfig.vt);
             m_signalGenerator = I2SSignalGenerator(
                 i2sIndex: 1,
@@ -106,6 +108,8 @@ struct TScherm(TSchermCTConfig ctConfig)
 extern(C)
 void app_main()
 {
+    enum log = Logger!"main"();
+
     enum TSchermCTConfig ctConfig = TSchermCTConfig();
     const TSchermRTConfig rtConfig = TSchermRTConfig(
         vt: VIDEO_TIMINGS_640W_480H_MAC,
@@ -120,7 +124,7 @@ void app_main()
     );
     auto tScherm = TScherm!ctConfig(rtConfig);
 
-
+    log.info!"Rotating between some patterns";
     while (true)
     {
         auto pause = (int t) @trusted => vTaskDelay(t);
@@ -140,6 +144,8 @@ void app_main()
 
         tScherm.m_fb.fill(Color.BLACK);
         pause(200);
+
+        log.info!"Completed a rotation";
     }
 
     while (true)

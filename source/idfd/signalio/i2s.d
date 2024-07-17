@@ -1,14 +1,14 @@
 module idfd.signalio.i2s;
 
-import idfd.signalio.i2s_c_code : finishClockSetupCFunc, startTransmittingCFunc;
+import idfd.signalio.idfd_signalio_i2s_c_code : finishClockSetupCFunc, startTransmittingCFunc;
 import idfd.signalio.signal : Signal;
 
-import idf.esp_hw_support.esp_private.periph_ctrl : periph_module_enable;
-import idf.esp_hw_support.port.soc.rtc : rtc_clk_apll_coeff_set, rtc_clk_apll_enable;
+import idf.driver.periph_ctrl : periph_module_enable;
 import idf.esp_rom.lldesc : lldesc_t;
 import idf.soc.gpio_sig_map : I2S0O_DATA_OUT0_IDX, I2S1O_DATA_OUT0_IDX;
 import idf.soc.i2s_struct : I2S0, I2S1, i2s_dev_t;
 import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE, periph_module_t;
+import idf.soc.rtc : rtc_clk_apll_enable;
 
 import ldc.attributes : optStrategy;
 
@@ -110,8 +110,13 @@ struct I2SSignalGenerator
             sdm = 0xA1fff;
 
         () @trusted {
-            rtc_clk_apll_enable(true);
-            rtc_clk_apll_coeff_set(odir, sdm & 255, (sdm >> 8) & 255, sdm >> 16);
+            rtc_clk_apll_enable(
+                enable : true,
+                sdm0 : sdm & 255,
+                sdm1 : (sdm >> 8) & 255,
+                sdm2 : sdm >> 16,
+                o_div : odir,
+            );
         }();
 
         (() @trusted => finishClockSetupCFunc(m_i2sDev))();
