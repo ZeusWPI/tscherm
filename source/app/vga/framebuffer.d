@@ -14,6 +14,7 @@ import ministd.heap_caps : dallocArrayCaps;
 
 struct FrameBuffer
 {
+@nogc:
     enum log = Logger!"FrameBuffer"();
 
     private const VideoTimings m_vt;
@@ -125,7 +126,7 @@ struct FrameBuffer
 
     void fillIteratingColorsDiagonal(string indexFunc = "x+y/vDivide")()
     {
-        immutable Color[] colors = [
+        static immutable Color[] colors = [
             Color.WHITE, Color.BLACK,
         ];
 

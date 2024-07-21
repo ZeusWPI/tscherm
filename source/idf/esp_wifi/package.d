@@ -1,7 +1,8 @@
 module idf.esp_wifi;
 
-public import idf.esp_wifi.idf_esp_wifi_c_code;
+public import idf.esp_wifi.esp_wifi;
+public import idf.esp_wifi.esp_wifi_crypto_types;
+public import idf.esp_wifi.esp_wifi_default;
+public import idf.esp_wifi.esp_wifi_types;
 
-@safe:
-
-wifi_init_config_t WIFI_INIT_CONFIG_DEFAULT() @trusted => WIFI_INIT_CONFIG_DEFAULT_CFunc;
+@safe nothrow @nogc extern (C):

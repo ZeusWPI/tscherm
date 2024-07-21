@@ -7,6 +7,7 @@ import app.vga.framebuffer : FrameBuffer;
 import idfd.log : Logger;
 
 import ministd.traits : isInstanceOf;
+import ministd.typecons : SharedHeap;
 
 @safe nothrow @nogc:
 
@@ -14,17 +15,20 @@ struct Box
 {
     size_t x1, x2, y1, y2;
 
-    bool valid() const pure => x1 < x2 && y1 < y2;
+const pure nothrow @nogc:
 
-    size_t width() const pure => x2 - x1;
-    size_t height() const pure => y2 - y1;
+    bool valid() => x1 < x2 && y1 < y2;
+
+    size_t width() => x2 - x1;
+    size_t height() => y2 - y1;
 }
 
 struct Drawer
 {
+@nogc:
     private enum log = Logger!"Drawer"();
 
-    private FrameBuffer* m_fb;
+    private SharedHeap!FrameBuffer m_fb;
     private Color m_backgroundColor;
     private size_t m_separatorX;
     private Color m_separatorColor;
@@ -32,8 +36,8 @@ struct Drawer
 
     @disable this();
 
-    this(FrameBuffer* fb)
-    in (fb !is null)
+    this(SharedHeap!FrameBuffer fb)
+    in (!fb.empty)
     {
         m_fb = fb;
 
@@ -64,7 +68,7 @@ struct Drawer
     in (m_separatorX < m_fb.activeWidth)
     {
         foreach (y; 0 .. m_fb.activeHeight)
-            (*m_fb)[y, m_separatorX] = m_separatorColor;
+            m_fb[y, m_separatorX] = m_separatorColor;
     }
 
     private void scrollBoxDown(
@@ -84,9 +88,9 @@ struct Drawer
             foreach (x; box.x1 .. box.x2)
             {
                 if (y + amount < box.y2)
-                    (*m_fb)[y, x] = (*m_fb)[y + amount, x];
+                    m_fb[y, x] = m_fb[y + amount, x];
                 else
-                    (*m_fb)[y, x] = background;
+                    (m_fb)[y, x] = background;
             }
     }
 
@@ -110,7 +114,7 @@ struct Drawer
                 foreach (x; 0 .. font.glyphWidth)
                 {
                     Color color = glyph[y][x] > 0x80 ? m_textColor : m_backgroundColor;
-                    (*m_fb)[box.y1 + y, box.x1 + xOffset + x] = color;
+                    m_fb[box.y1 + y, box.x1 + xOffset + x] = color;
                 }
         }
     }

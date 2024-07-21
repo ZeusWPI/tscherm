@@ -16,7 +16,7 @@ import idfd.signalio.i2s : I2SSignalGenerator;
 import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
-import ministd.typecons : UniqueHeapArray;
+import ministd.typecons : UniqueHeapArray, SharedHeap;
 
 // dfmt off
 @safe:
@@ -38,35 +38,35 @@ struct TScherm(TSchermCTConfig ctConfig)
     private enum log = Logger!"TScherm"();
 
     private const TSchermRTConfig m_rtConfig;
-    private FrameBuffer m_fb;
+    private SharedHeap!FrameBuffer m_fb;
     private DMADescriptorRing m_dmaDescriptorRing;
     private I2SSignalGenerator m_signalGenerator;
-    // private Drawer m_drawer;
-    // private WiFiClient m_wifiClient;
-    // private HttpServer m_httpServer;
+    private SharedHeap!Drawer m_drawer;
+    private WiFiClient m_wifiClient;
+    private HttpServer m_httpServer;
 
     this(const TSchermRTConfig rtConfig)
     {
         m_rtConfig = rtConfig;
 
-        // Init network async
         {
-            // m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
-            // m_wifiClient.startAsync;
+            log.info!"Initializing network (async)";
+
+            m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
+            m_wifiClient.startAsync;
         }
 
-        // Init VGA
         {
-            log.info!"initializing VGA";
+            log.info!"Initializing VGA";
 
-            m_fb = FrameBuffer(m_rtConfig.vt);
+            m_fb = SharedHeap!FrameBuffer.create(m_rtConfig.vt);
             m_signalGenerator = I2SSignalGenerator(
                 i2sIndex: 1,
                 bitCount: 8,
                 freq: m_rtConfig.vt.pixelClock,
             );
             m_dmaDescriptorRing = DMADescriptorRing(m_rtConfig.vt.v.total);
-            m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.linesWithSync)());
+            m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.get.linesWithSync)());
 
             UniqueHeapArray!Signal signals = m_signalGenerator.getSignals;
             // route(from: signals.get[0], to: GPIOPin(m_rtConfig.redPin  ), invert: false); // Red
@@ -80,21 +80,23 @@ struct TScherm(TSchermCTConfig ctConfig)
 
             m_signalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-            // m_drawer = Drawer(&m_fb);
+            m_drawer = SharedHeap!Drawer.create(m_fb);
 
             log.info!"VGA initialization complete";
         }
 
-        // Wait for async network init to complete
         {
-            // m_wifiClient.waitForConnection;
+            log.info!"Waiting for network to initialize";
 
-            // log.info!"Network initialization complete";
+            m_wifiClient.waitForConnection;
+
+            log.info!"Network initialization complete";
         }
 
         {
-            // m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
-            // m_httpServer.start;
+            log.info!"Starting http server (in another task)";
+            m_httpServer = HttpServer(m_drawer, m_rtConfig.httpPort);
+            m_httpServer.start;
         }
     }
 
@@ -132,10 +134,10 @@ void app_main()
         tScherm.m_fb.fill(Color.WHITE);
         pause(200);
 
-        tScherm.drawImage!"zeus.raw";
-        pause(800);
-        tScherm.drawImage!"reavershark.raw";
-        pause(800);
+        // tScherm.drawImage!"zeus.raw";
+        // pause(800);
+        // tScherm.drawImage!"reavershark.raw";
+        // pause(800);
 
         tScherm.m_fb.fillIteratingColorsDiagonal!"x+y/vDivide";
         pause(200);

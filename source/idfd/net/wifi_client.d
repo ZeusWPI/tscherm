@@ -9,17 +9,17 @@ import idf.esp_event : esp_event_base_t, esp_event_handler_instance_t, ESP_EVENT
 import idf.freertos : EventGroupHandle_t,
     pdFALSE, portMAX_DELAY,
     xEventGroupCreate, xEventGroupSetBits, xEventGroupWaitBits;
-import idf.esp_wifi : esp_wifi_connect, esp_wifi_start,
-    WIFI_EVENT, WIFI_EVENT_STA_START, WIFI_EVENT_STA_DISCONNECTED,
-    esp_netif_init, esp_netif_create_default_wifi_sta,
-    IP_EVENT, IP_EVENT_STA_GOT_IP, ip_event_got_ip_t,
-    esp_wifi_init, wifi_init_config_t, WIFI_INIT_CONFIG_DEFAULT,
-    esp_wifi_set_mode, esp_wifi_set_config, wifi_config_t, wifi_sta_config_t,
-    WIFI_AUTH_OPEN, WIFI_AUTH_WEP, WIFI_MODE_STA, WIFI_IF_STA;
+import idf.esp_netif : esp_netif_init, IP_EVENT, ip_event_got_ip_t, ip_event_t;
+import idf.esp_wifi : esp_netif_create_default_wifi_sta, esp_wifi_connect, esp_wifi_init,
+    esp_wifi_set_config, esp_wifi_set_mode, esp_wifi_start, wifi_auth_mode_t,
+    wifi_config_t, WIFI_EVENT, wifi_event_t, WIFI_INIT_CONFIG_DEFAULT, wifi_init_config_t,
+    wifi_interface_t, wifi_mode_t, wifi_sta_config_t;
 
 import ministd.string : setStringz;
 
 @safe nothrow @nogc:
+
+__gshared wifi_init_config_t initCfg;
 
 struct WiFiClient
 {
@@ -61,6 +61,7 @@ struct WiFiClient
         if (!nvsFlashInitialized)
             initNvsFlash!true;
 
+
         m_eventGroup = xEventGroupCreate;
 
         ESP_ERROR_CHECK(esp_netif_init);
@@ -68,7 +69,8 @@ struct WiFiClient
         ESP_ERROR_CHECK(esp_event_loop_create_default);
         esp_netif_create_default_wifi_sta;
 
-        wifi_init_config_t initCfg = WIFI_INIT_CONFIG_DEFAULT;
+        initCfg = WIFI_INIT_CONFIG_DEFAULT;
+        log.info!"tx: %d"(initCfg.dynamic_tx_buf_num);
         ESP_ERROR_CHECK(esp_wifi_init(&initCfg));
 
         esp_event_handler_instance_t instance_any_id;
@@ -77,7 +79,7 @@ struct WiFiClient
             WIFI_EVENT, ESP_EVENT_ANY_ID, &wifiEventHandler, &this, &instance_any_id
         ));
         ESP_ERROR_CHECK(esp_event_handler_instance_register(
-            IP_EVENT, IP_EVENT_STA_GOT_IP, &wifiEventHandler, &this, &instance_got_ip
+            IP_EVENT, ip_event_t.IP_EVENT_STA_GOT_IP, &wifiEventHandler, &this, &instance_got_ip
         ));
 
         wifi_config_t wifi_config;
@@ -85,10 +87,11 @@ struct WiFiClient
         wifi_config.sta.ssid[].setStringz(m_ssid);
         wifi_config.sta.password[].setStringz(m_password);
         // Set minimum accepted network security
-        wifi_config.sta.threshold.authmode = m_password.length ? WIFI_AUTH_WEP : WIFI_AUTH_OPEN;
+        wifi_config.sta.threshold.authmode = m_password.length
+            ? wifi_auth_mode_t.WIFI_AUTH_WEP : wifi_auth_mode_t.WIFI_AUTH_OPEN;
 
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        ESP_ERROR_CHECK(esp_wifi_set_mode(wifi_mode_t.WIFI_MODE_STA));
+        ESP_ERROR_CHECK(esp_wifi_set_config(wifi_interface_t.WIFI_IF_STA, &wifi_config));
         ESP_ERROR_CHECK(esp_wifi_start);
     }
 
@@ -101,12 +104,12 @@ struct WiFiClient
     {
         if (eventBase == WIFI_EVENT)
         {
-            if (eventId == WIFI_EVENT_STA_START)
+            if (eventId == wifi_event_t.WIFI_EVENT_STA_START)
             {
                 log.info!"Connecting to AP...";
                 esp_wifi_connect;
             }
-            else if (eventId == WIFI_EVENT_STA_DISCONNECTED)
+            else if (eventId == wifi_event_t.WIFI_EVENT_STA_DISCONNECTED)
             {
                 log.warn!"Failed to connect to AP, retrying...";
                 esp_wifi_connect;
@@ -114,7 +117,7 @@ struct WiFiClient
         }
         else if (eventBase == IP_EVENT)
         {
-            if (eventId == IP_EVENT_STA_GOT_IP)
+            if (eventId == ip_event_t.IP_EVENT_STA_GOT_IP)
             {
                 ip_event_got_ip_t* event = cast(ip_event_got_ip_t*) eventData;
                 uint* ipPtr = &event.ip_info.ip.addr;

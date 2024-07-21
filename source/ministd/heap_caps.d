@@ -6,7 +6,7 @@ import core.lifetime : emplace;
 
 import idf.heap.caps : heap_caps_malloc;
 
-@safe nothrow:
+@safe nothrow @nogc:
 
 @trusted
 void[] mallocCapsWrapper(size_t size, uint capabilities = 0)

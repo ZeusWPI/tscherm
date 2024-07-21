@@ -7,16 +7,17 @@ struct VideoTimings
 {
     struct Dimension
     {
+const pure nothrow @nogc:
         uint front, sync, back, res;
-        uint total() const pure => front + sync + back + res;
-        uint frontStart() const pure => 0;
-        uint frontEnd() const pure => front;
-        uint syncStart() const pure => front;
-        uint syncEnd() const pure => front + sync;
-        uint backStart() const pure => front + sync;
-        uint backEnd() const pure => front + sync + back;
-        uint resStart() const pure => front + sync + back;
-        uint resEnd() const pure => front + sync + back + res;
+        uint total() => front + sync + back + res;
+        uint frontStart() => 0;
+        uint frontEnd() => front;
+        uint syncStart() => front;
+        uint syncEnd() => front + sync;
+        uint backStart() => front + sync;
+        uint backEnd() => front + sync + back;
+        uint resStart() => front + sync + back;
+        uint resEnd() => front + sync + back + res;
     }
 
     ulong pixelClock;
