@@ -49,6 +49,38 @@ struct ip_event_got_ip_t
     bool ip_changed;             /*!< Whether the assigned IP has changed or not */
 }
 
+enum esp_netif_flags_t
+{
+    ESP_NETIF_DHCP_CLIENT = 1 << 0,
+    ESP_NETIF_DHCP_SERVER = 1 << 1,
+    ESP_NETIF_FLAG_AUTOUP = 1 << 2,
+    ESP_NETIF_FLAG_GARP   = 1 << 3,
+    ESP_NETIF_FLAG_EVENT_IP_MODIFIED = 1 << 4,
+    ESP_NETIF_FLAG_IS_PPP = 1 << 5,
+    ESP_NETIF_FLAG_IS_SLIP = 1 << 6,
+    ESP_NETIF_FLAG_MLDV6_REPORT = 1 << 7,
+}
+
+/**
+ * @brief ESP-netif inherent config parameters
+ *
+ */
+struct esp_netif_inherent_config_t
+{
+    esp_netif_flags_t flags;            /*!< flags that define esp-netif behavior */
+    ubyte[6] mac;                       /*!< initial mac address for this interface */
+    const esp_netif_ip_info_t* ip_info; /*!< initial ip address for this interface */
+    uint get_ip_event;                  /*!< event id to be raised when interface gets an IP */
+    uint lost_ip_event;                 /*!< event id to be raised when interface losts its IP */
+    const char* if_key;                 /*!< string identifier of the interface */
+    const char* if_desc;                /*!< textual description of the interface */
+    int route_prio;                     /*!< numeric priority of this interface to become a default
+                                             routing if (if other netifs are up).
+                                             A higher value of route_prio indicates
+                                             a higher priority */
+}
+
+
 /**
  * @brief  Initialize the underlying TCP/IP stack
  *

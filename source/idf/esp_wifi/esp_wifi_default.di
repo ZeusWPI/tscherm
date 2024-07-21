@@ -1,7 +1,8 @@
 module idf.esp_wifi.esp_wifi_default;
 
 import idf.esp_common.esp_err : esp_err_t;
-import idf.esp_netif : esp_netif_t;
+import idf.esp_netif : esp_netif_t, esp_netif_inherent_config_t;
+import idf.esp_wifi.esp_wifi_types : wifi_interface_t;
 
 @safe nothrow @nogc extern (C):
 
@@ -94,6 +95,7 @@ void esp_netif_destroy_default_wifi(void* esp_netif);
  * @return pointer to esp-netif instance
  */
 // esp_netif_t* esp_netif_create_wifi(wifi_interface_t wifi_if, esp_netif_inherent_config_t* esp_netif_config);
+// TODO
 
 /**
  * @brief Creates default STA and AP network interfaces for esp-mesh.

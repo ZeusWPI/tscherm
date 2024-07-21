@@ -2,19 +2,14 @@ module idf.esp_wifi.esp_wifi;
 
 import idf.esp_common.esp_err : esp_err_t, ESP_ERR_WIFI_BASE;
 import idf.esp_event : system_event_handler_t;
-import idf.esp_wifi.esp_private.wifi_os_adapter : g_wifi_osi_funcs, wifi_osi_funcs_t;
+import idf.esp_wifi.esp_private.wifi_os_adapter : wifi_osi_funcs_t;
 import idf.esp_wifi.esp_wifi_crypto_types : wpa_crypto_funcs_t;
 import idf.esp_wifi.esp_wifi_types;
-import idf.esp_event : esp_event_send_internal;
 import idf.sdkconfig;
 
 @safe nothrow @nogc extern (C):
+
 // dfmt off
-
-//
-// Manifest constants
-//
-
 enum ESP_ERR_WIFI_NOT_INIT        = ESP_ERR_WIFI_BASE + 1;   /*!< WiFi driver was not installed by esp_wifi_init */
 enum ESP_ERR_WIFI_NOT_STARTED     = ESP_ERR_WIFI_BASE + 2;   /*!< WiFi driver was not started by esp_wifi_start */
 enum ESP_ERR_WIFI_NOT_STOPPED     = ESP_ERR_WIFI_BASE + 3;   /*!< WiFi driver was not stopped by esp_wifi_stop */
@@ -30,7 +25,6 @@ enum ESP_ERR_WIFI_TIMEOUT         = ESP_ERR_WIFI_BASE + 12;  /*!< Timeout error 
 enum ESP_ERR_WIFI_WAKE_FAIL       = ESP_ERR_WIFI_BASE + 13;  /*!< WiFi is in sleep state(RF closed) and wakeup fail */
 enum ESP_ERR_WIFI_WOULD_BLOCK     = ESP_ERR_WIFI_BASE + 14;  /*!< The caller would block */
 enum ESP_ERR_WIFI_NOT_CONNECT     = ESP_ERR_WIFI_BASE + 15;  /*!< Station still in disconnect status */
-
 enum ESP_ERR_WIFI_POST            = ESP_ERR_WIFI_BASE + 18;  /*!< Failed to post the event to WiFi task */
 enum ESP_ERR_WIFI_INIT_STATE      = ESP_ERR_WIFI_BASE + 19;  /*!< Invalid WiFi state when init/deinit is called */
 enum ESP_ERR_WIFI_STOP_STATE      = ESP_ERR_WIFI_BASE + 20;  /*!< Returned when WiFi is stopping */
@@ -38,6 +32,7 @@ enum ESP_ERR_WIFI_NOT_ASSOC       = ESP_ERR_WIFI_BASE + 21;  /*!< The WiFi conne
 enum ESP_ERR_WIFI_TX_DISALLOW     = ESP_ERR_WIFI_BASE + 22;  /*!< The WiFi TX is disallowed */
 enum ESP_ERR_WIFI_DISCARD         = ESP_ERR_WIFI_BASE + 23;  /*!< Discard frame */
 enum ESP_ERR_WIFI_ROC_IN_PROGRESS = ESP_ERR_WIFI_BASE + 28;  /*!< ROC op is in progress */
+// dfmt on
 
 static if (is(typeof(CONFIG_ESP32_WIFI_STATIC_TX_BUFFER_NUM)))
     enum WIFI_STATIC_TX_BUFFER_NUM = CONFIG_ESP32_WIFI_STATIC_TX_BUFFER_NUM;
@@ -93,10 +88,7 @@ enum CONFIG_FEATURE_CACHE_TX_BUF_BIT = 1 << 1;
 enum CONFIG_FEATURE_FTM_INITIATOR_BIT = 1 << 2;
 enum CONFIG_FEATURE_FTM_RESPONDER_BIT = 1 << 3;
 
-//
-// Types
-//
-
+// dfmt off
 /// WiFi stack configuration parameters passed to esp_wifi_init call.
 struct wifi_init_config_t
 {
@@ -126,54 +118,14 @@ struct wifi_init_config_t
     int                    espnow_max_encrypt_num; /**< Maximum encrypt number of peers supported by espnow */
     int                    magic;                  /**< WiFi init magic number, it should be the last field */
 }
+// dfmt on
 
 alias wifi_promiscuous_cb_t = void function(void* buf, wifi_promiscuous_pkt_type_t type);
 alias esp_vendor_ie_cb_t = void function(void* ctx, wifi_vendor_ie_type_t type, const ubyte[6] sa, const vendor_ie_data_t* vnd_ie, int rssi);
 alias wifi_csi_cb_t = void function(void* ctx, wifi_csi_info_t* data);
 
-
-//
-// Global variables
-//
-
 extern __gshared const wpa_crypto_funcs_t g_wifi_default_wpa_crypto_funcs;
 extern __gshared ulong g_wifi_feature_caps;
-
-//
-// Functions
-//
-
-@trusted
-wifi_init_config_t WIFI_INIT_CONFIG_DEFAULT()
-{
-    return wifi_init_config_t(
-        event_handler : &esp_event_send_internal,
-        osi_funcs : &g_wifi_osi_funcs,
-        wpa_crypto_funcs : g_wifi_default_wpa_crypto_funcs,
-        static_rx_buf_num : CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM,
-        dynamic_rx_buf_num : CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM,
-        tx_buf_type : CONFIG_ESP32_WIFI_TX_BUFFER_TYPE,
-        static_tx_buf_num : WIFI_STATIC_TX_BUFFER_NUM,
-        dynamic_tx_buf_num : WIFI_DYNAMIC_TX_BUFFER_NUM,
-        rx_mgmt_buf_type : CONFIG_ESP_WIFI_DYNAMIC_RX_MGMT_BUF,
-        rx_mgmt_buf_num : WIFI_RX_MGMT_BUF_NUM_DEF,
-        cache_tx_buf_num : WIFI_CACHE_TX_BUFFER_NUM,
-        csi_enable : WIFI_CSI_ENABLED,
-        ampdu_rx_enable : WIFI_AMPDU_RX_ENABLED,
-        ampdu_tx_enable : WIFI_AMPDU_TX_ENABLED,
-        amsdu_tx_enable : WIFI_AMSDU_TX_ENABLED,
-        nvs_enable : WIFI_NVS_ENABLED,
-        nano_enable : WIFI_NANO_FORMAT_ENABLED,
-        rx_ba_win : WIFI_DEFAULT_RX_BA_WIN,
-        wifi_task_core_id : WIFI_TASK_CORE_ID,
-        beacon_max_len : WIFI_SOFTAP_BEACON_MAX_LEN,
-        mgmt_sbuf_num : WIFI_MGMT_SBUF_NUM,
-        feature_caps : g_wifi_feature_caps,
-        sta_disconnected_pm : WIFI_STA_DISCONNECTED_PM_ENABLED,
-        espnow_max_encrypt_num : CONFIG_ESP_WIFI_ESPNOW_MAX_ENCRYPT_NUM,
-        magic : WIFI_INIT_CONFIG_MAGIC,
-    );
-}
 
 esp_err_t esp_wifi_init(const wifi_init_config_t* config);
 esp_err_t esp_wifi_deinit();
@@ -211,8 +163,8 @@ esp_err_t esp_wifi_set_promiscuous_filter(const wifi_promiscuous_filter_t* filte
 esp_err_t esp_wifi_get_promiscuous_filter(wifi_promiscuous_filter_t* filter);
 esp_err_t esp_wifi_set_promiscuous_ctrl_filter(const wifi_promiscuous_filter_t* filter);
 esp_err_t esp_wifi_get_promiscuous_ctrl_filter(wifi_promiscuous_filter_t* filter);
-esp_err_t esp_wifi_set_config(wifi_interface_t iface, wifi_config_t* conf);
-esp_err_t esp_wifi_get_config(wifi_interface_t iface, wifi_config_t* conf);
+esp_err_t esp_wifi_set_config(wifi_interface_t interface_, wifi_config_t* conf);
+esp_err_t esp_wifi_get_config(wifi_interface_t interface_, wifi_config_t* conf);
 esp_err_t esp_wifi_ap_get_sta_list(wifi_sta_list_t* sta);
 esp_err_t esp_wifi_ap_get_sta_aid(const ubyte[6] mac, ushort* aid);
 esp_err_t esp_wifi_set_storage(wifi_storage_t storage);
@@ -230,7 +182,7 @@ esp_err_t esp_wifi_set_ant_gpio(const wifi_ant_gpio_config_t* config);
 esp_err_t esp_wifi_get_ant_gpio(wifi_ant_gpio_config_t* config);
 esp_err_t esp_wifi_set_ant(const wifi_ant_config_t* config);
 esp_err_t esp_wifi_get_ant(wifi_ant_config_t* config);
-long esp_wifi_get_tsf_time(wifi_interface_t iface);
+long esp_wifi_get_tsf_time(wifi_interface_t interface_);
 esp_err_t esp_wifi_set_inactive_time(wifi_interface_t ifx, ushort sec);
 esp_err_t esp_wifi_get_inactive_time(wifi_interface_t ifx, ushort* sec);
 esp_err_t esp_wifi_statis_dump(uint modules);

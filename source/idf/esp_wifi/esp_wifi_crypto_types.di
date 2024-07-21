@@ -1,5 +1,7 @@
 module idf.esp_wifi.esp_wifi_crypto_types;
 
+@safe nothrow @nogc extern (C):
+
 enum ESP_WIFI_CRYPTO_VERSION = 0x00000001;
 
 /*
@@ -9,9 +11,12 @@ enum ESP_WIFI_CRYPTO_VERSION = 0x00000001;
  */
 enum esp_crypto_hash_alg_t
 {
-    ESP_CRYPTO_HASH_ALG_MD5, ESP_CRYPTO_HASH_ALG_SHA1,
-    ESP_CRYPTO_HASH_ALG_HMAC_MD5, ESP_CRYPTO_HASH_ALG_HMAC_SHA1,
-    ESP_CRYPTO_HASH_ALG_SHA256, ESP_CRYPTO_HASH_ALG_HMAC_SHA256
+  ESP_CRYPTO_HASH_ALG_MD5,
+  ESP_CRYPTO_HASH_ALG_SHA1,
+  ESP_CRYPTO_HASH_ALG_HMAC_MD5,
+  ESP_CRYPTO_HASH_ALG_HMAC_SHA1,
+  ESP_CRYPTO_HASH_ALG_SHA256,
+  ESP_CRYPTO_HASH_ALG_HMAC_SHA256
 }
 
 /*
@@ -21,8 +26,12 @@ enum esp_crypto_hash_alg_t
  */
 enum esp_crypto_cipher_alg_t
 {
-    ESP_CRYPTO_CIPHER_NULL, ESP_CRYPTO_CIPHER_ALG_AES, ESP_CRYPTO_CIPHER_ALG_3DES,
-    ESP_CRYPTO_CIPHER_ALG_DES, ESP_CRYPTO_CIPHER_ALG_RC2, ESP_CRYPTO_CIPHER_ALG_RC4
+  ESP_CRYPTO_CIPHER_NULL,
+  ESP_CRYPTO_CIPHER_ALG_AES,
+  ESP_CRYPTO_CIPHER_ALG_3DES,
+  ESP_CRYPTO_CIPHER_ALG_DES,
+  ESP_CRYPTO_CIPHER_ALG_RC2,
+  ESP_CRYPTO_CIPHER_ALG_RC4
 }
 
 /*
@@ -30,12 +39,14 @@ enum esp_crypto_cipher_alg_t
  * please reference to the structure crypto_hash.
  */
 // typedef struct crypto_hash esp_crypto_hash_t;
+alias esp_crypto_hash_t = void;
 
 /*
  * This structure is about the algorithm when do crypto_cipher operation, for detail,
  * please reference to the structure crypto_cipher.
  */
 // typedef struct crypto_cipher esp_crypto_cipher_t;
+alias esp_crypto_cipher_t = void;
 
 /**
   * @brief The AES callback function when do WPS connect.
@@ -92,7 +103,7 @@ alias esp_aes_unwrap_t = int function(const ubyte* kek, int n, const ubyte* ciph
   *
   */
 alias esp_hmac_sha256_vector_t = int function(const ubyte* key, int key_len, int num_elem,
-			                   const ubyte* addr, const int* len, ubyte* mac);
+  const ubyte* addr, const int* len, ubyte* mac);
 
 /**
   * @brief The AES callback function when do STA connect.
@@ -107,7 +118,7 @@ alias esp_hmac_sha256_vector_t = int function(const ubyte* key, int key_len, int
   *
   */
 alias esp_sha256_prf_t = int function(const ubyte* key, int key_len, const char* label,
-	                           const ubyte* data, int data_len, ubyte* buf, int buf_len);
+  const ubyte* data, int data_len, ubyte* buf, int buf_len);
 
 /**
  * @brief HMAC-MD5 over data buffer (RFC 2104)'
@@ -120,7 +131,7 @@ alias esp_sha256_prf_t = int function(const ubyte* key, int key_len, const char*
  * Returns: 0 on success, -1 on failure
  */
 alias esp_hmac_md5_t = int function(const ubyte* key, uint key_len, const ubyte* data,
-                              uint data_len, ubyte* mac);
+  uint data_len, ubyte* mac);
 
 /**
  * @brief HMAC-MD5 over data vector (RFC 2104)
@@ -134,7 +145,7 @@ alias esp_hmac_md5_t = int function(const ubyte* key, uint key_len, const ubyte*
  * Returns: 0 on success, -1 on failure
  */
 alias esp_hmac_md5_vector_t = int function(const ubyte* key, uint key_len, uint num_elem,
-                              const ubyte* addr, const uint* len, ubyte* mac);
+  const ubyte* addr, const uint* len, ubyte* mac);
 
 /**
  * @brief HMAC-SHA1 over data buffer (RFC 2104)
@@ -147,7 +158,7 @@ alias esp_hmac_md5_vector_t = int function(const ubyte* key, uint key_len, uint 
  * Returns: 0 on success, -1 of failure
  */
 alias esp_hmac_sha1_t = int function(const ubyte* key, uint key_len, const ubyte* data,
-                              uint data_len, ubyte* mac);
+  uint data_len, ubyte* mac);
 
 /**
  * @brief HMAC-SHA1 over data vector (RFC 2104)
@@ -161,7 +172,7 @@ alias esp_hmac_sha1_t = int function(const ubyte* key, uint key_len, const ubyte
  * Returns: 0 on success, -1 on failure
  */
 alias esp_hmac_sha1_vector_t = int function(const ubyte* key, uint key_len, uint num_elem,
-                              const ubyte* addr, const uint* len, ubyte* mac);
+  const ubyte* addr, const uint* len, ubyte* mac);
 
 /**
  * @brief SHA1-based Pseudo-Random Function (PRF) (IEEE 802.11i, 8.5.1.1)
@@ -179,7 +190,7 @@ alias esp_hmac_sha1_vector_t = int function(const ubyte* key, uint key_len, uint
  * given key (e.g., PMK in IEEE 802.11i).
  */
 alias esp_sha1_prf_t = int function(const ubyte* key, uint key_len, const char* label,
-                              const ubyte* data, uint data_len, ubyte* buf, uint buf_len);
+  const ubyte* data, uint data_len, ubyte* buf, uint buf_len);
 
 /**
  * @brief SHA-1 hash for data vector
@@ -191,7 +202,7 @@ alias esp_sha1_prf_t = int function(const ubyte* key, uint key_len, const char* 
  * Returns: 0 on success, -1 on failure
  */
 alias esp_sha1_vector_t = int function(uint num_elem, const ubyte* addr, const uint* len,
-                              ubyte* mac);
+  ubyte* mac);
 
 /**
  * @brief SHA1-based key derivation function (PBKDF2) for IEEE 802.11i
@@ -209,7 +220,7 @@ alias esp_sha1_vector_t = int function(uint num_elem, const ubyte* addr, const u
  * IEEE Std 802.11-2004, Clause H.4. The main construction is from PKCS#5 v2.0.
  */
 alias esp_pbkdf2_sha1_t = int function(const char* passphrase, const char* ssid, uint ssid_len,
-                              int iterations, ubyte* buf, uint buflen);
+  int iterations, ubyte* buf, uint buflen);
 
 /**
  * @brief XOR RC4 stream to given data with skip-stream-start
@@ -226,7 +237,7 @@ alias esp_pbkdf2_sha1_t = int function(const char* passphrase, const char* ssid,
  * encryption/decryption.
  */
 alias esp_rc4_skip_t = int function(const ubyte* key, uint keylen, uint skip,
-                              ubyte* data, uint data_len);
+  ubyte* data, uint data_len);
 
 /**
  * @brief MD5 hash for data vector
@@ -238,7 +249,7 @@ alias esp_rc4_skip_t = int function(const ubyte* key, uint keylen, uint skip,
  * Returns: 0 on success, -1 on failure
  */
 alias esp_md5_vector_t = int function(uint num_elem, const ubyte* addr, const uint* len,
-                              ubyte* mac);
+  ubyte* mac);
 
 /**
  * @brief Encrypt one AES block
@@ -300,7 +311,7 @@ alias esp_aes_decrypt_deinit_t = void function(void* ctx);
  * Returns: 0 on success, -1 on failure
  */
 alias esp_omac1_aes_128_t = int function(const ubyte* key, const ubyte* data, size_t data_len,
-                                   ubyte* mic);
+  ubyte* mic);
 
 /**
  * @brief Decrypt data using CCMP (Counter Mode CBC-MAC Protocol OR
@@ -315,8 +326,8 @@ alias esp_omac1_aes_128_t = int function(const ubyte* key, const ubyte* data, si
  * Returns: Pointer to decrypted data on success, NULL on failure
  */
 alias esp_ccmp_decrypt_t = ubyte* function(const ubyte* tk, const ubyte* ieee80211_hdr,
-                                        const ubyte* data, size_t data_len,
-                                        size_t* decrypted_len, bool espnow_pkt);
+  const ubyte* data, size_t data_len,
+  size_t* decrypted_len, bool espnow_pkt);
 
 /**
  * @brief Encrypt data using CCMP (Counter Mode CBC-MAC Protocol OR
@@ -331,7 +342,7 @@ alias esp_ccmp_decrypt_t = ubyte* function(const ubyte* tk, const ubyte* ieee802
  * @encrypted_len: Length of the encrypted frame including header
  */
 alias esp_ccmp_encrypt_t = ubyte* function(const ubyte* tk, ubyte* frame, size_t len, size_t hdrlen,
-                                        ubyte* pn, int keyid, size_t* encrypted_len);
+  ubyte* pn, int keyid, size_t* encrypted_len);
 
 /**
  * @brief One-Key GMAC hash with AES for MIC computation
@@ -346,8 +357,9 @@ alias esp_ccmp_encrypt_t = ubyte* function(const ubyte* tk, ubyte* frame, size_t
  * Returns: 0 on success, -1 on failure
  */
 alias esp_aes_gmac_t = int function(const ubyte* key, size_t keylen, const ubyte* iv, size_t iv_len,
-                              const ubyte* aad, size_t aad_len, ubyte* mic);
+  const ubyte* aad, size_t aad_len, ubyte* mic);
 
+// dfmt off
 /**
   * @brief The crypto callback function structure used when do station security connect.
   *        The structure can be set as software crypto or the crypto optimized by ESP32
@@ -355,34 +367,35 @@ alias esp_aes_gmac_t = int function(const ubyte* key, size_t keylen, const ubyte
   */
 struct wpa_crypto_funcs_t
 {
-    uint size;
-    uint version_;
-    esp_aes_wrap_t aes_wrap;                         /**< station connect function used when send EAPOL frame */
-    esp_aes_unwrap_t aes_unwrap;                     /**< station connect function used when decrypt key data */
-    esp_hmac_sha256_vector_t hmac_sha256_vector;     /**< station connect function used when check MIC */
-    esp_sha256_prf_t sha256_prf;                     /**< station connect function used when check MIC */
-    esp_hmac_md5_t hmac_md5;
-    esp_hmac_md5_vector_t hamc_md5_vector;
-    esp_hmac_sha1_t hmac_sha1;
-    esp_hmac_sha1_vector_t hmac_sha1_vector;
-    esp_sha1_prf_t sha1_prf;
-    esp_sha1_vector_t sha1_vector;
-    esp_pbkdf2_sha1_t pbkdf2_sha1;
-    esp_rc4_skip_t rc4_skip;
-    esp_md5_vector_t md5_vector;
-    esp_aes_encrypt_t aes_encrypt;
-    esp_aes_encrypt_init_t aes_encrypt_init;
-    esp_aes_encrypt_deinit_t aes_encrypt_deinit;
-    esp_aes_decrypt_t aes_decrypt;
-    esp_aes_decrypt_init_t aes_decrypt_init;
-    esp_aes_decrypt_deinit_t aes_decrypt_deinit;
-    esp_aes_128_encrypt_t aes_128_encrypt;
-    esp_aes_128_decrypt_t aes_128_decrypt;
-    esp_omac1_aes_128_t omac1_aes_128;
-    esp_ccmp_decrypt_t ccmp_decrypt;
-    esp_ccmp_encrypt_t ccmp_encrypt;
-    esp_aes_gmac_t aes_gmac;
+  uint size;
+  uint version_;
+  esp_aes_wrap_t aes_wrap;                     /**< station connect function used when send EAPOL frame */
+  esp_aes_unwrap_t aes_unwrap;                 /**< station connect function used when decrypt key data */
+  esp_hmac_sha256_vector_t hmac_sha256_vector; /**< station connect function used when check MIC */
+  esp_sha256_prf_t sha256_prf;                 /**< station connect function used when check MIC */
+  esp_hmac_md5_t hmac_md5;
+  esp_hmac_md5_vector_t hamc_md5_vector;
+  esp_hmac_sha1_t hmac_sha1;
+  esp_hmac_sha1_vector_t hmac_sha1_vector;
+  esp_sha1_prf_t sha1_prf;
+  esp_sha1_vector_t sha1_vector;
+  esp_pbkdf2_sha1_t pbkdf2_sha1;
+  esp_rc4_skip_t rc4_skip;
+  esp_md5_vector_t md5_vector;
+  esp_aes_encrypt_t aes_encrypt;
+  esp_aes_encrypt_init_t aes_encrypt_init;
+  esp_aes_encrypt_deinit_t aes_encrypt_deinit;
+  esp_aes_decrypt_t aes_decrypt;
+  esp_aes_decrypt_init_t aes_decrypt_init;
+  esp_aes_decrypt_deinit_t aes_decrypt_deinit;
+  esp_aes_128_encrypt_t aes_128_encrypt;
+  esp_aes_128_decrypt_t aes_128_decrypt;
+  esp_omac1_aes_128_t omac1_aes_128;
+  esp_ccmp_decrypt_t ccmp_decrypt;
+  esp_ccmp_encrypt_t ccmp_encrypt;
+  esp_aes_gmac_t aes_gmac;
 }
+// dfmt on
 
 /**
   * @brief The crypto callback function structure used in mesh vendor IE encryption. The
@@ -391,6 +404,6 @@ struct wpa_crypto_funcs_t
   */
 struct mesh_crypto_funcs_t
 {
-    esp_aes_128_encrypt_t aes_128_encrypt;          /**< function used in mesh vendor IE encryption */
-    esp_aes_128_decrypt_t aes_128_decrypt;          /**< function used in mesh vendor IE decryption */
+  esp_aes_128_encrypt_t aes_128_encrypt; /**< function used in mesh vendor IE encryption */
+  esp_aes_128_decrypt_t aes_128_decrypt; /**< function used in mesh vendor IE decryption */
 }

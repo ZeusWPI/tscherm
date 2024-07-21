@@ -2,7 +2,7 @@ module idf.sys.socket;
 
 public import idf.sys.socket.idf_sys_socket_c_code;
 
-@safe:
+@safe nothrow @nogc:
 
 ushort htons(ushort hostShort) @trusted => htonsCFunc(hostShort);
 uint htonl(uint hostInt) @trusted => htonlCFunc(hostInt);

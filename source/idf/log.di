@@ -1,4 +1,5 @@
 module idf.log;
+// TODO: finish this binding
 
 import idf.sdkconfig;
 

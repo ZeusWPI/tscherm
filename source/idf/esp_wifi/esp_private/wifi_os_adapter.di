@@ -107,8 +107,8 @@ struct wifi_osi_funcs_t
     int function(void* t) _get_time;
     ulong function() _random;
 
-    static if (is(typeof(CONFIG_IDF_TARGET_ESP32S2)) || is(typeof(CONFIG_IDF_TARGET_ESP32S3)) || is(
-            CONFIG_IDF_TARGET_ESP32C3))
+    static if (is(typeof(CONFIG_IDF_TARGET_ESP32S2)) || is(typeof(CONFIG_IDF_TARGET_ESP32S3))
+        || is(CONFIG_IDF_TARGET_ESP32C3))
     {
         uint function() _slowclk_cal_get;
     }
