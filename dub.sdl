@@ -3,6 +3,7 @@ targetType "staticLibrary"
 
 //sourceFiles "source/idfd/signalio/idfd_signalio_i2s_c_code.c"
 
+dependency "bindbc-idf" version="~master" repository="git+https://github.com/Reavershark/bindbc-idf"
 dependency "nobetterc" version="~master" repository="git+https://github.com/Reavershark/nobetterc"
 
 subconfiguration "nobetterc" "minimal"
@@ -29,7 +30,7 @@ dflags \
 
 
 // Build idf project
-preBuildCommands \
+preGenerateCommands \
     "cd idf-project/${DUB_BUILD_TYPE} && ([ -f build/config/sdkconfig.h ] || idf.py configure) || true"
 postBuildCommands \
     "rm idf-project/${DUB_BUILD_TYPE}/dcode.a &>/dev/null || true" \
