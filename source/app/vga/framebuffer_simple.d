@@ -3,8 +3,8 @@ module app.vga.framebuffer_simple;
 import app.vga.color : Color;
 import app.vga.video_timings : VideoTimings;
 
-// dfmt off
 @safe nothrow @nogc:
+// dfmt off
 
 struct FrameBufferSimple3LineBuffers
 {
@@ -81,43 +81,50 @@ struct FrameBufferSimple3LineBuffers
     uint activeWidth() const pure => m_vt.h.res;
     uint activeHeight() const pure => m_vt.v.res;
 
-    Color[][] linesWithSync() pure
+    pure
+    Color[][] linesWithSync()
     {
         return m_lineBuffers;
     }
 
-    Color[] getLineWithSync(in uint y) pure
+    pure
+    Color[] getLineWithSync(in uint y)
     in (y < m_vt.v.total)
     {
         return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
     }
 
-    Color[] getLine(in uint y) pure
+    pure
+    Color[] getLine(in uint y)
     in (y < m_vt.v.res)
     {
         return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
     }
 
-    Color[] opIndex(in uint y) pure
+    pure
+    Color[] opIndex(in uint y)
     in (y < m_vt.v.res)
     {
         return getLine(y);
     }
 
-    ref Color opIndex(in uint y, in uint x) pure
+    pure
+    ref Color opIndex(in uint y, in uint x)
     in (y < m_vt.v.res)
     in (x < m_vt.h.res)
     {
         return getLine(y)[x ^ 2];
     }
 
-    void fill(Color color) pure
+    pure
+    void fill(Color color)
     {
         foreach (y; 0 .. 2)
             getLine(y)[] = color;
     }
 
-    void clear() pure => fill(Color.BLACK);
+    pure
+    void clear() => fill(Color.BLACK);
 
     void fillIteratingColorsDiagonal(string indexFunc = "x/8+y")()
     {
@@ -206,46 +213,56 @@ struct FrameBufferHalfLines
         dfree(m_lineBuffers);
     }
 
-    uint activeWidth() const pure => m_vt.h.res;
-    uint activeHeight() const pure => m_vt.v.res;
+    pure
+    uint activeWidth() const => m_vt.h.res;
 
-    Color[][] linesWithSync() pure
+    pure
+    uint activeHeight() const => m_vt.v.res;
+
+    pure
+    Color[][] linesWithSync()
     {
         return m_lineBuffers;
     }
 
-    Color[] getLineWithSync(in uint y) pure
+    pure
+    Color[] getLineWithSync(in uint y)
     in (y < m_vt.v.total)
     {
         return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
     }
 
-    Color[] getLine(in uint y) pure
+    pure
+    Color[] getLine(in uint y)
     in (y < m_vt.v.res)
     {
         return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
     }
 
-    Color[] opIndex(in uint y) pure
+    pure
+    Color[] opIndex(in uint y)
     in (y < m_vt.v.res)
     {
         return getLine(y);
     }
 
-    ref Color opIndex(in uint y, in uint x) pure
+    pure
+    ref Color opIndex(in uint y, in uint x)
     in (y < m_vt.v.res)
     in (x < m_vt.h.res)
     {
         return getLine(y)[x ^ 2];
     }
 
-    void fill(Color color) pure
+    pure
+    void fill(Color color)
     {
         foreach (y; 0 .. 2)
             getLine(y)[] = color;
     }
 
-    void clear() pure => fill(Color.BLACK);
+    pure
+    void clear() => fill(Color.BLACK);
 
     void fillIteratingColorsDiagonal(string indexFunc = "x/8+y")()
     {

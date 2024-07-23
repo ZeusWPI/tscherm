@@ -5,8 +5,8 @@ import idf.heap.caps : MALLOC_CAP_DMA;
 
 import ministd.heap_caps : dallocArrayCaps;
 
-// dfmt off
 @safe nothrow @nogc:
+// dfmt off
 
 struct DMADescriptorRing
 {
@@ -17,7 +17,8 @@ struct DMADescriptorRing
         initDescriptors(descriptorCount);
     }
 
-    private void initDescriptors(size_t descriptorCount)
+    private
+    void initDescriptors(size_t descriptorCount)
     {
         // Alloc structs
         m_descriptors = dallocArrayCaps!lldesc_t(descriptorCount, MALLOC_CAP_DMA);
@@ -42,7 +43,8 @@ struct DMADescriptorRing
         }
     }
 
-    void setBuffers(ubyte[][] buffers) pure
+    pure
+    void setBuffers(ubyte[][] buffers)
     in (buffers.length == m_descriptors.length)
     {
         foreach (i, ref descriptor; m_descriptors)
@@ -54,5 +56,6 @@ struct DMADescriptorRing
         }
     }
 
-    lldesc_t* firstDescriptor() pure => &m_descriptors[0];
+    pure
+    lldesc_t* firstDescriptor() => &m_descriptors[0];
 }

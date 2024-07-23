@@ -59,19 +59,21 @@ struct Drawer
             Box(
                 0, font.glyphWidth * text.length,
                 m_fb.activeHeight - font.glyphHeight, m_fb.activeHeight
-            ),
-            text,
+        ),
+        text,
         );
     }
 
-    private void drawLayout()
+    private
+    void drawLayout()
     in (m_separatorX < m_fb.activeWidth)
     {
         foreach (y; 0 .. m_fb.activeHeight)
             m_fb[y, m_separatorX] = m_separatorColor;
     }
 
-    private void scrollBoxDown(
+    private
+    void scrollBoxDown(
         in Box box,
         size_t amount, const Color background,
     )
@@ -94,12 +96,9 @@ struct Drawer
             }
     }
 
-    private void drawTextBox(
-        F, F font,
-    )(
-        in Box box,
-        const char[] text,
-    ) if (isInstanceOf!(Font, F))
+    private
+    void drawTextBox(F, F font)(in Box box, const char[] text) //
+    if (isInstanceOf!(Font, F))
     in (box.valid)
     in (box.x2 <= m_fb.activeWidth)
     in (box.y2 <= m_fb.activeHeight)

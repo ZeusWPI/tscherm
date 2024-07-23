@@ -18,8 +18,8 @@ import idfd.signalio.signal : Signal;
 
 import ministd.typecons : UniqueHeapArray, SharedHeap;
 
-// dfmt off
 @safe:
+// dfmt off
 
 struct TSchermRTConfig
 {

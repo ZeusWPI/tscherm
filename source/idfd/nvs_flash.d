@@ -11,7 +11,8 @@ enum log = Logger!"nvs_flash"();
 
 shared nvsFlashInitialized = false;
 
-void initNvsFlash(bool eraseIfNeeded = true)() @trusted
+@trusted
+void initNvsFlash(bool eraseIfNeeded = true)()
 {
     log.info!"Initializing NVS Flash...";
     static if (!eraseIfNeeded)

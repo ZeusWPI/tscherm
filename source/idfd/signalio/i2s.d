@@ -32,11 +32,7 @@ struct I2SSignalGenerator
      *   freq = Bit speed/frequency on each pin.
      *   i2sIndex = Which of the 2 I2S devices to use: `0` or `1`.
      */
-    this(
-        uint i2sIndex,
-        uint bitCount,
-        long freq,
-    )
+    this(uint i2sIndex, uint bitCount, long freq)
     in (bitCount == 8 || bitCount == 16)
     in (i2sIndex == 0 || i2sIndex == 1)
     {
@@ -109,6 +105,7 @@ struct I2SSignalGenerator
         if (sdm > 0xA1fff)
             sdm = 0xA1fff;
 
+        // dfmt off
         () @trusted {
             rtc_clk_apll_enable(
                 enable : true,
@@ -118,6 +115,7 @@ struct I2SSignalGenerator
                 o_div : odir,
             );
         }();
+        // dfmt on
 
         (() @trusted => finishClockSetupCFunc(m_i2sDev))();
     }

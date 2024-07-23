@@ -9,8 +9,8 @@ import idfd.log : Logger;
 
 import ministd.heap_caps : dallocArrayCaps;
 
-// dfmt off
 @safe nothrow @nogc:
+// dfmt off
 
 struct FrameBuffer
 {
@@ -83,46 +83,56 @@ struct FrameBuffer
         dfree(m_lineBuffers);
     }
 
-    size_t activeWidth() const pure => m_vt.h.res;
-    size_t activeHeight() const pure => m_vt.v.res;
+    pure
+    size_t activeWidth() const => m_vt.h.res;
 
-    Color[][] linesWithSync() pure
+    pure
+    size_t activeHeight() const => m_vt.v.res;
+
+    pure
+    Color[][] linesWithSync()
     {
         return m_lineBuffers;
     }
 
-    Color[] getLineWithSync(in size_t y) pure
+    pure
+    Color[] getLineWithSync(in size_t y)
     in (y < m_vt.v.total)
     {
         return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
     }
 
-    Color[] getLine(in size_t y) pure
+    pure
+    Color[] getLine(in size_t y)
     in (y < m_vt.v.res)
     {
         return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
     }
 
-    Color[] opIndex(in size_t y) pure
+    pure
+    Color[] opIndex(in size_t y)
     in (y < m_vt.v.res)
     {
         return getLine(y);
     }
 
-    ref Color opIndex(in size_t y, in size_t x) pure
+    pure
+    ref Color opIndex(in size_t y, in size_t x)
     in (y < m_vt.v.res)
     in (x < m_vt.h.res)
     {
         return getLine(y)[x ^ 2];
     }
 
-    void fill(Color color) pure
+    pure
+    void fill(Color color)
     {
         for (size_t y = 0; y < m_vt.v.res; y += vDivide)
             getLine(y)[] = color;
     }
 
-    void clear() pure => fill(Color.BLACK);
+    pure
+    void clear() => fill(Color.BLACK);
 
     void fillIteratingColorsDiagonal(string indexFunc = "x+y/vDivide")()
     {

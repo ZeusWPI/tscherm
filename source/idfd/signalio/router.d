@@ -44,7 +44,8 @@ struct Route
     }
 }
 
-Route route(GPIOPin from, Signal to, bool invert = false) @trusted
+@trusted
+Route route(GPIOPin from, Signal to, bool invert = false)
 in (from.supportsInput)
 {
     ulong* muxRegElementPtr = cast(ulong*) cast(void*) GPIO_PIN_MUX_REG[from.pin];
@@ -60,7 +61,8 @@ in (from.supportsInput)
     // dfmt on
 }
 
-Route route(Signal from, GPIOPin to, bool invert = false) @trusted
+@trusted
+Route route(Signal from, GPIOPin to, bool invert = false)
 in (to.supportsOutput)
 {
     ulong* muxRegElementPtr = cast(ulong*) cast(void*) GPIO_PIN_MUX_REG[to.pin];

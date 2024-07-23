@@ -15,9 +15,9 @@ struct Font(string ignore)
     alias GlyphType = ubyte[glyphWidth][glyphHeight];
     enum ImageType image = cast(ImageType) import(imagePath)[0 .. imageLength];
 
-pure const:
+const pure:
 
-    GlyphType opIndex(C)(C c)
+    GlyphType opIndex(C)(C c) //
     if (isSomeChar!C)
     {
         if (c < ' ' || '~' < c)
@@ -26,7 +26,7 @@ pure const:
         return this[index];
     }
 
-    GlyphType opIndex(I)(I i)
+    GlyphType opIndex(I)(I i) //
     if (!isSomeChar!I)
     in (i < glyphCount)
     {

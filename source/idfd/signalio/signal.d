@@ -11,7 +11,7 @@ struct Signal
         m_signal = signal;
     }
 
-    pure const
+    const pure
     {
         uint signal() => m_signal;
     }

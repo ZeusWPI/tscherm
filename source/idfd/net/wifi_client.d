@@ -25,7 +25,8 @@ struct WiFiClient
 {
     private enum log = Logger!"WifiClient"();
 
-    private enum EventGroupBits : uint
+    private
+    enum EventGroupBits : uint
     {
         CONNECTED = 1 << 0,
     }
@@ -43,24 +44,23 @@ struct WiFiClient
         m_password = password;
     }
 
-    private static extern (C)
+    private static @trusted extern (C)
     void wifiEventHandler(
         void* wifiClientVoidPtr,
-        esp_event_base_t eventBase,
-        int eventId,
+        esp_event_base_t eventBase, int eventId,
         void* eventData,
-    ) @trusted
+    )
     in (wifiClientVoidPtr !is null)
     {
         typeof(this)* wifiClient = cast(typeof(this)*) wifiClientVoidPtr;
         wifiClient.handleEvent(eventBase, eventId, eventData);
     }
 
-    void startAsync() @trusted
+    @trusted
+    void startAsync()
     {
         if (!nvsFlashInitialized)
             initNvsFlash!true;
-
 
         m_eventGroup = xEventGroupCreate;
 
@@ -75,12 +75,14 @@ struct WiFiClient
 
         esp_event_handler_instance_t instance_any_id;
         esp_event_handler_instance_t instance_got_ip;
+        // dfmt off
         ESP_ERROR_CHECK(esp_event_handler_instance_register(
             WIFI_EVENT, ESP_EVENT_ANY_ID, &wifiEventHandler, &this, &instance_any_id
         ));
         ESP_ERROR_CHECK(esp_event_handler_instance_register(
             IP_EVENT, ip_event_t.IP_EVENT_STA_GOT_IP, &wifiEventHandler, &this, &instance_got_ip
         ));
+        // dfmt on
 
         wifi_config_t wifi_config;
 
@@ -95,12 +97,14 @@ struct WiFiClient
         ESP_ERROR_CHECK(esp_wifi_start);
     }
 
-    void waitForConnection() @trusted
+    @trusted
+    void waitForConnection()
     {
         xEventGroupWaitBits(m_eventGroup, EventGroupBits.CONNECTED, pdFALSE, pdFALSE, portMAX_DELAY);
     }
 
-    private void handleEvent(esp_event_base_t eventBase, int eventId, void* eventData) @trusted
+    private @trusted
+    void handleEvent(esp_event_base_t eventBase, int eventId, void* eventData)
     {
         if (eventBase == WIFI_EVENT)
         {
@@ -130,4 +134,3 @@ struct WiFiClient
         }
     }
 }
-

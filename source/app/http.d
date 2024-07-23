@@ -33,7 +33,8 @@ struct HttpServer
         m_recvTimeoutUsecs = recvTimeoutUsecs;
     }
 
-    void start() @trusted
+    @trusted
+    void start()
     {
         m_listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         assert(m_listenSocket >= 0);
@@ -75,7 +76,8 @@ struct HttpServer
         scope (exit)
             log.info!"handleOurOnlyClient: Exited\n";
 
-        struct SocketReader(C = char) if (C.sizeof == 1)
+        struct SocketReader(C = char) //
+        if (C.sizeof == 1)
         {
             private int m_socket = -1;
             private long m_recvTimeoutUsecs;

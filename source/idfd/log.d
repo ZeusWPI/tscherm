@@ -7,7 +7,8 @@ import ministd.traits : ReturnType, Unqual;
 
 @safe nothrow @nogc:
 
-private enum Level : esp_log_level_t
+private
+enum Level : esp_log_level_t
 {
     // dfmt off
     none  = esp_log_level_t.ESP_LOG_NONE,
@@ -19,7 +20,8 @@ private enum Level : esp_log_level_t
     // dfmt on
 }
 
-private auto timestampFunc()
+private
+auto timestampFunc()
 {
     static if (is(typeof(CONFIG_LOG_TIMESTAMP_SOURCE_RTOS)))
         return esp_log_timestamp;
@@ -29,7 +31,8 @@ private auto timestampFunc()
         static assert(false, "Could not determine the timestamp function");
 }
 
-private enum string timestampFormatSpecifier = {
+private
+enum string timestampFormatSpecifier = {
     alias returnType = Unqual!(ReturnType!timestampFunc);
     static if (is(returnType == uint))
         return "%u";
@@ -44,7 +47,8 @@ struct Logger(string tag)
     static assert(!is(typeof(this).sizeof)); // Opaque struct
 
 pragma(inline):
-    private void log(Level level, string format, Args...)(Args args)
+    private
+    void log(Level level, string format, Args...)(Args args)
     {
         static if (LOG_MAXIMUM_LEVEL <= level)
         {
