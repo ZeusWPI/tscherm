@@ -7,8 +7,9 @@ struct VideoTimings
 pure nothrow @nogc:
     struct Dimension
     {
-    const pure nothrow @nogc:
+    pure nothrow @nogc:
         uint front, sync, back, res;
+    const scope:
         uint total() => front + sync + back + res;
         uint frontStart() => 0;
         uint frontEnd() => front;

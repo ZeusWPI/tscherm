@@ -4,7 +4,7 @@ import app.http : HttpServer;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
 import app.vga.draw : Drawer;
-import app.vga.framebuffer : FrameBuffer;
+import app.vga.framebuffer;
 import app.vga.video_timings;
 
 import idf.freertos : vTaskDelay, vTaskSuspend;
@@ -16,15 +16,14 @@ import idfd.signalio.i2s : I2SSignalGenerator;
 import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
-import ministd.typecons : UniqueHeapArray, SharedHeap;
+import ministd.typecons : UniqueHeap, UniqueHeapArray;
 
 @safe:
-// dfmt off
 
 struct TSchermRTConfig
 {
     const(VideoTimings) vt;
-    int redPin, greenPin, bluePin, hSyncPin, vSyncPin;
+    int whitePin, cSyncPin;
     string ssid, password;
     ushort httpPort;
 }
@@ -35,17 +34,20 @@ struct TSchermCTConfig
 
 struct TScherm(TSchermCTConfig ctConfig)
 {
-    private enum log = Logger!"TScherm"();
+    private
+    {
+        enum log = Logger!"TScherm"();
 
-    private const TSchermRTConfig m_rtConfig;
-    private SharedHeap!FrameBuffer m_fb;
-    private DMADescriptorRing m_dmaDescriptorRing;
-    private I2SSignalGenerator m_signalGenerator;
-    private SharedHeap!Drawer m_drawer;
-    private WiFiClient m_wifiClient;
-    private HttpServer m_httpServer;
+        const TSchermRTConfig m_rtConfig;
+        UniqueHeap!FrameBufferRegularVDiv m_fb;
+        DMADescriptorRing m_dmaDescriptorRing;
+        I2SSignalGenerator m_signalGenerator;
+        Drawer m_drawer;
+        WiFiClient m_wifiClient;
+        HttpServer m_httpServer;
+    }
 
-    this(const TSchermRTConfig rtConfig)
+    this(const TSchermRTConfig rtConfig) return scope
     {
         m_rtConfig = rtConfig;
 
@@ -59,28 +61,26 @@ struct TScherm(TSchermCTConfig ctConfig)
         {
             log.info!"Initializing VGA";
 
-            m_fb = SharedHeap!FrameBuffer.create(m_rtConfig.vt);
+            m_fb = typeof(m_fb).create(m_rtConfig.vt);
+            // dfmt off
             m_signalGenerator = I2SSignalGenerator(
                 i2sIndex: 1,
                 bitCount: 8,
                 freq: m_rtConfig.vt.pixelClock,
             );
+            // dfmt on
             m_dmaDescriptorRing = DMADescriptorRing(m_rtConfig.vt.v.total);
-            m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.get.linesWithSync)());
+            m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.linesWithSync)());
 
             UniqueHeapArray!Signal signals = m_signalGenerator.getSignals;
-            // route(from: signals.get[0], to: GPIOPin(m_rtConfig.redPin  ), invert: false); // Red
-            // route(from: signals.get[1], to: GPIOPin(m_rtConfig.greenPin), invert: false); // Green
-            // route(from: signals.get[2], to: GPIOPin(m_rtConfig.bluePin ), invert: false); // Blue
-            // route(from: signals.get[6], to: GPIOPin(m_rtConfig.hSyncPin), invert: false); // HSync
-            // route(from: signals.get[7], to: GPIOPin(m_rtConfig.vSyncPin), invert: false); // VSync
-
-            route(from: signals.get[0], to: GPIOPin(25), invert: false); // White
-            route(from: signals.get[6], to: GPIOPin(26), invert: true ); // CSync
+            // dfmt off
+            route(from: signals.get[0], to: GPIOPin(m_rtConfig.whitePin), invert: false); // White
+            route(from: signals.get[6], to: GPIOPin(m_rtConfig.cSyncPin), invert: true ); // CSync
+            // dfmt on
 
             m_signalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-            m_drawer = SharedHeap!Drawer.create(m_fb);
+            m_drawer = Drawer(m_fb.get);
 
             log.info!"VGA initialization complete";
         }
@@ -95,35 +95,35 @@ struct TScherm(TSchermCTConfig ctConfig)
 
         {
             log.info!"Starting http server (in another task)";
-            m_httpServer = HttpServer(m_drawer, m_rtConfig.httpPort);
+
+            m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
             m_httpServer.start;
         }
     }
 
-    void drawImage(string source)()
+    void drawImage(string source)() return scope
     {
         immutable ubyte[] img = cast(immutable ubyte[]) import(source);
         m_fb.drawGrayscaleImage(img, Color.YELLOW, Color.BLACK);
     }
 }
 
-extern(C)
+extern (C)
 void app_main()
 {
     enum log = Logger!"main"();
 
+    // dfmt off
     enum TSchermCTConfig ctConfig = TSchermCTConfig();
     const TSchermRTConfig rtConfig = TSchermRTConfig(
         vt: VIDEO_TIMINGS_640W_480H_MAC,
-        redPin: 14,
-        greenPin: 27,
-        bluePin: 16,
-        hSyncPin: 25,
-        vSyncPin: 26,
+        whitePin: 25,
+        cSyncPin: 26,
         ssid: "Zeus WPI",
         password: "zeusisdemax",
         httpPort: 80,
     );
+    // dfmt on
     auto tScherm = TScherm!ctConfig(rtConfig);
 
     log.info!"Rotating between some patterns";

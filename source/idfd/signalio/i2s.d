@@ -25,6 +25,7 @@ struct I2SSignalGenerator
     private i2s_dev_t* m_i2sDev;
     private uint m_bitCount;
 
+scope:
     /** 
      * Params:
      *   bitCount = Number of bits in one sample.
@@ -145,7 +146,7 @@ struct I2SSignalGenerator
      *   firstDescriptor = Pointer to a lldesc_t of which the next ptr can be followed infinitely.
      */
     @trusted
-    void startTransmitting(lldesc_t* firstDescriptor)
+    void startTransmitting(return scope lldesc_t* firstDescriptor) return scope
     {
         startTransmittingCFunc(m_i2sDev, firstDescriptor);
     }

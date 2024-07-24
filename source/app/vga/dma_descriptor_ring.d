@@ -13,6 +13,7 @@ struct DMADescriptorRing
 nothrow @nogc:
     private lldesc_t[] m_descriptors;
 
+scope:
     this(in size_t descriptorCount)
     {
         initDescriptors(descriptorCount);
@@ -58,5 +59,5 @@ nothrow @nogc:
     }
 
     pure
-    lldesc_t* firstDescriptor() => &m_descriptors[0];
+    lldesc_t* firstDescriptor() return scope => &m_descriptors[0];
 }

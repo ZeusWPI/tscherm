@@ -48,6 +48,7 @@ nothrow @nogc:
 pragma(inline):
     static assert(!is(typeof(this).sizeof)); // Opaque struct
 
+scope:
     private
     void log(Level level, string format, Args...)(Args args)
     {

@@ -11,7 +11,7 @@ import idf.sys.socket : accept, AF_INET, bind, close, connect, htonl, htons, IPA
 import idfd.log : Logger;
 
 import ministd.string : startsWith;
-import ministd.typecons : UniqueHeapArray, SharedHeap;
+import ministd.typecons : UniqueHeapArray;
 
 @safe:
 
@@ -22,11 +22,13 @@ struct HttpServer
     private ushort m_port;
     private int m_listenSocket;
     private long m_recvTimeoutUsecs;
-    private SharedHeap!Drawer m_drawer;
+    private Drawer* m_drawer;
 
+scope:
     @disable this();
 
-    this(SharedHeap!Drawer drawer, ushort port, long recvTimeoutUsecs = 2_000_000)
+    this(return scope Drawer* drawer, ushort port, long recvTimeoutUsecs = 2_000_000)
+    in (drawer !is null)
     {
         m_drawer = drawer;
         m_port = port;

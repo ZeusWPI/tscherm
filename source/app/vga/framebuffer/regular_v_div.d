@@ -1,6 +1,7 @@
-module app.vga.framebuffer;
+module app.vga.framebuffer.regular_v_div;
 
 import app.vga.color : Color;
+import app.vga.framebuffer.base : FrameBuffer;
 import app.vga.video_timings : VideoTimings;
 
 import idf.heap.caps : MALLOC_CAP_DMA;
@@ -10,35 +11,32 @@ import idfd.log : Logger;
 import ministd.heap_caps : dallocArrayCaps;
 
 @safe nothrow @nogc:
-// dfmt off
 
-struct FrameBuffer
+final
+class FrameBufferRegularVDiv : FrameBuffer
 {
 nothrow @nogc:
     enum log = Logger!"FrameBuffer"();
 
-    private const VideoTimings m_vt;
-    private Color[] m_lineBufferBlank;
-    private Color[] m_lineBufferVSync;
-    private Color[][] m_lineBuffers;
+    protected Color[] m_lineBufferBlank;
+    protected Color[] m_lineBufferVSync;
 
     int vDivide = 4;
 
+scope:
     this(in VideoTimings vt)
     {
-        m_vt = vt;
+        super(vt);
 
         m_lineBufferBlank = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
         m_lineBufferVSync = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
-
-        m_lineBuffers = dallocArray!(Color[])(m_vt.v.total);
 
         foreach (y; 0 .. m_lineBuffers.length)
         {
             if (m_vt.v.resStart <= y && y < m_vt.v.resEnd)
             {
                 size_t i = (y - m_vt.v.resStart) % vDivide;
-                if (i == 0) 
+                if (i == 0)
                     m_lineBuffers[y] = dallocArrayCaps!Color(m_vt.h.total, MALLOC_CAP_DMA);
                 else
                     m_lineBuffers[y] = m_lineBuffers[y - i];
@@ -52,6 +50,7 @@ nothrow @nogc:
         fullClear;
     }
 
+    // dfmt off
     void fullClear()
     {
         m_lineBufferBlank[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK;
@@ -73,6 +72,7 @@ nothrow @nogc:
             line[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLACK;
         }
     }
+    // dfmt on
 
     ~this()
     {
@@ -80,59 +80,7 @@ nothrow @nogc:
             dfree(m_lineBuffers[y]);
         dfree(m_lineBufferBlank);
         dfree(m_lineBufferVSync);
-        dfree(m_lineBuffers);
     }
-
-    pure
-    size_t activeWidth() const => m_vt.h.res;
-
-    pure
-    size_t activeHeight() const => m_vt.v.res;
-
-    pure
-    Color[][] linesWithSync()
-    {
-        return m_lineBuffers;
-    }
-
-    pure
-    Color[] getLineWithSync(in size_t y)
-    in (y < m_vt.v.total)
-    {
-        return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
-    }
-
-    pure
-    Color[] getLine(in size_t y)
-    in (y < m_vt.v.res)
-    {
-        return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
-    }
-
-    pure
-    Color[] opIndex(in size_t y)
-    in (y < m_vt.v.res)
-    {
-        return getLine(y);
-    }
-
-    pure
-    ref Color opIndex(in size_t y, in size_t x)
-    in (y < m_vt.v.res)
-    in (x < m_vt.h.res)
-    {
-        return getLine(y)[x ^ 2];
-    }
-
-    pure
-    void fill(Color color)
-    {
-        for (size_t y = 0; y < m_vt.v.res; y += vDivide)
-            getLine(y)[] = color;
-    }
-
-    pure
-    void clear() => fill(Color.BLACK);
 
     void fillIteratingColorsDiagonal(string indexFunc = "x+y/vDivide")()
     {
@@ -153,7 +101,7 @@ nothrow @nogc:
         in Color whiteColor = Color.WHITE,
         in Color blackColor = Color.BLACK,
     )
-    in(image.length == m_vt.v.res * m_vt.h.res)
+    in (image.length == m_vt.v.res * m_vt.h.res)
     {
         for (size_t y = 0; y < m_vt.v.res; y += vDivide)
             foreach (x; 0 .. m_vt.h.res)

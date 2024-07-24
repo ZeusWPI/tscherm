@@ -12,6 +12,7 @@ nothrow @nogc:
 
     private uint m_pin;
 
+scope:
     @disable this();
 
     this(uint pin)

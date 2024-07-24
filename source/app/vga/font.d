@@ -16,7 +16,7 @@ pure nothrow @nogc:
     alias GlyphType = ubyte[glyphWidth][glyphHeight];
     enum ImageType image = cast(ImageType) import(imagePath)[0 .. imageLength];
 
-const:
+const scope:
     GlyphType opIndex(C)(C c) //
     if (isSomeChar!C)
     {

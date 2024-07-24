@@ -25,6 +25,7 @@ nothrow @nogc:
     private GPIOPin m_pin;
     private bool m_inverted;
 
+scope:
     @disable this();
 
     private

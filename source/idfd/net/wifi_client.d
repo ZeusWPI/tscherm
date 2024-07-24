@@ -32,6 +32,7 @@ struct WiFiClient
     private string m_ssid, m_password;
     private EventGroupHandle_t m_eventGroup;
 
+scope:
     @disable this();
 
     this(string ssid, string password = "")

@@ -2,12 +2,11 @@ module app.vga.draw;
 
 import app.vga.color : Color;
 import app.vga.font : Font;
-import app.vga.framebuffer : FrameBuffer;
+import app.vga.framebuffer;
 
 import idfd.log : Logger;
 
 import ministd.traits : isInstanceOf;
-import ministd.typecons : SharedHeap;
 
 @safe nothrow @nogc:
 
@@ -16,7 +15,7 @@ struct Box
 pure nothrow @nogc:
     size_t x1, x2, y1, y2;
 
-const:
+const scope:
     bool valid() => x1 < x2 && y1 < y2;
 
     size_t width() => x2 - x1;
@@ -28,16 +27,17 @@ struct Drawer
 nothrow @nogc:
     private enum log = Logger!"Drawer"();
 
-    private SharedHeap!FrameBuffer m_fb;
+    private FrameBuffer m_fb;
     private Color m_backgroundColor;
     private size_t m_separatorX;
     private Color m_separatorColor;
     private Color m_textColor;
 
+scope:
     @disable this();
 
-    this(SharedHeap!FrameBuffer fb)
-    in (!fb.empty)
+    this(return scope FrameBuffer fb) return scope
+    in (fb !is null)
     {
         m_fb = fb;
 
@@ -49,20 +49,25 @@ nothrow @nogc:
         drawLayout;
     }
 
+    // dfmt off
     void appendText(char[] text)
     {
         enum font = Font!"ignore"();
 
-        scrollBoxDown(Box(0, m_separatorX, 0, m_fb.activeHeight), font.glyphHeight, m_backgroundColor);
+        scrollBoxDown(
+            Box(0, m_separatorX, 0, m_fb.activeHeight),
+            font.glyphHeight, m_backgroundColor,
+        );
 
         drawTextBox!(typeof(font), font)(
             Box(
                 0, font.glyphWidth * text.length,
-                m_fb.activeHeight - font.glyphHeight, m_fb.activeHeight
-        ),
-        text,
+                m_fb.activeHeight - font.glyphHeight, m_fb.activeHeight,
+            ),
+            text,
         );
     }
+    // dfmt on
 
     private
     void drawLayout()
@@ -92,7 +97,7 @@ nothrow @nogc:
                 if (y + amount < box.y2)
                     m_fb[y, x] = m_fb[y + amount, x];
                 else
-                    (m_fb)[y, x] = background;
+                    m_fb[y, x] = background;
             }
     }
 

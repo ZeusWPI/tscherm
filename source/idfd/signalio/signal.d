@@ -7,6 +7,7 @@ struct Signal
 nothrow @nogc:
     private uint m_signal;
 
+scope:
     this(uint signal)
     {
         m_signal = signal;
