@@ -44,9 +44,10 @@ enum string timestampFormatSpecifier = {
 
 struct Logger(string tag)
 {
+nothrow @nogc:
+pragma(inline):
     static assert(!is(typeof(this).sizeof)); // Opaque struct
 
-pragma(inline):
     private
     void log(Level level, string format, Args...)(Args args)
     {

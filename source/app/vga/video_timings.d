@@ -1,13 +1,13 @@
 module app.vga.video_timings;
 
 @safe nothrow @nogc:
-// dfmt off
 
 struct VideoTimings
 {
+pure nothrow @nogc:
     struct Dimension
     {
-const pure nothrow @nogc:
+    const pure nothrow @nogc:
         uint front, sync, back, res;
         uint total() => front + sync + back + res;
         uint frontStart() => 0;
@@ -25,6 +25,7 @@ const pure nothrow @nogc:
     Dimension v;
 }
 
+// dfmt off
 enum VideoTimings VIDEO_TIMINGS_320W_480H = {
     pixelClock: 25_175_000/2,
     h: {res: 640/2, front: 16/2, sync: 96/2, back: 48/2},
@@ -50,3 +51,4 @@ enum VideoTimings VIDEO_TIMINGS_1280W_720H = {
     h: {res: 1280, front: 110, sync: 40, back: 220},
     v: {res: 720, front: 5, sync: 5, back: 20},
 };
+// dfmt on

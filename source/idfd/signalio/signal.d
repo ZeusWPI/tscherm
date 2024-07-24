@@ -4,6 +4,7 @@ module idfd.signalio.signal;
 
 struct Signal
 {
+nothrow @nogc:
     private uint m_signal;
 
     this(uint signal)

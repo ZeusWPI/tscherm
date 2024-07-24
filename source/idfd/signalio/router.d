@@ -13,6 +13,7 @@ import idf.soc.io_mux_reg : MCU_SEL_S, MCU_SEL_V, PIN_FUNC_GPIO;
 
 struct Route
 {
+nothrow @nogc:
     enum Type
     {
         FromPinToSignal,

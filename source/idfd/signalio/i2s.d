@@ -51,7 +51,7 @@ struct I2SSignalGenerator
     private
     void enable()
     {
-        immutable periph_module_t[] modules = [
+        static immutable periph_module_t[] modules = [
             PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE
         ];
         const periph_module_t m = modules[m_i2sIndex];

@@ -5,6 +5,7 @@ module app.vga.color;
 
 struct Color
 {
+nothrow @nogc:
     ubyte m_value;
 
     enum Color BLACK   = Color(0);

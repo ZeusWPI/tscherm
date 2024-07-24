@@ -13,10 +13,10 @@ import ministd.typecons : SharedHeap;
 
 struct Box
 {
+pure nothrow @nogc:
     size_t x1, x2, y1, y2;
 
-const pure nothrow @nogc:
-
+const:
     bool valid() => x1 < x2 && y1 < y2;
 
     size_t width() => x2 - x1;
@@ -25,7 +25,7 @@ const pure nothrow @nogc:
 
 struct Drawer
 {
-@nogc:
+nothrow @nogc:
     private enum log = Logger!"Drawer"();
 
     private SharedHeap!FrameBuffer m_fb;

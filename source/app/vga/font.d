@@ -6,6 +6,7 @@ import ministd.traits : isSomeChar, Unqual;
 
 struct Font(string ignore)
 {
+pure nothrow @nogc:
     enum imagePath = "fonts/mc_16x32.bin";
     enum uint glyphCount = 95;
     enum uint glyphWidth = 16;
@@ -15,8 +16,7 @@ struct Font(string ignore)
     alias GlyphType = ubyte[glyphWidth][glyphHeight];
     enum ImageType image = cast(ImageType) import(imagePath)[0 .. imageLength];
 
-const pure:
-
+const:
     GlyphType opIndex(C)(C c) //
     if (isSomeChar!C)
     {

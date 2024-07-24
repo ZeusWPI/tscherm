@@ -8,6 +8,7 @@ import app.vga.video_timings : VideoTimings;
 
 struct FrameBufferSimple3LineBuffers
 {
+nothrow @nogc:
     private const VideoTimings m_vt;
     private Color[][] m_lineBuffers;
     private Color[] m_lineBufferBlank;
@@ -143,6 +144,7 @@ struct FrameBufferSimple3LineBuffers
 
 struct FrameBufferHalfLines
 {
+nothrow @nogc:
     private const VideoTimings m_vt;
     private Color[][] m_lineBuffers;
     private Color[] m_lineBufferBlank;

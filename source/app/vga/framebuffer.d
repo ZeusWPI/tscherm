@@ -14,7 +14,7 @@ import ministd.heap_caps : dallocArrayCaps;
 
 struct FrameBuffer
 {
-@nogc:
+nothrow @nogc:
     enum log = Logger!"FrameBuffer"();
 
     private const VideoTimings m_vt;

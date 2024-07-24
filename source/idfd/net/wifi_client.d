@@ -19,8 +19,6 @@ import ministd.string : setStringz;
 
 @safe nothrow @nogc:
 
-__gshared wifi_init_config_t initCfg;
-
 struct WiFiClient
 {
     private enum log = Logger!"WifiClient"();
@@ -44,7 +42,7 @@ struct WiFiClient
         m_password = password;
     }
 
-    private static @trusted extern (C)
+    private static @trusted nothrow @nogc extern (C)
     void wifiEventHandler(
         void* wifiClientVoidPtr,
         esp_event_base_t eventBase, int eventId,
@@ -69,7 +67,7 @@ struct WiFiClient
         ESP_ERROR_CHECK(esp_event_loop_create_default);
         esp_netif_create_default_wifi_sta;
 
-        initCfg = WIFI_INIT_CONFIG_DEFAULT;
+        wifi_init_config_t initCfg = WIFI_INIT_CONFIG_DEFAULT;
         log.info!"tx: %d"(initCfg.dynamic_tx_buf_num);
         ESP_ERROR_CHECK(esp_wifi_init(&initCfg));
 
@@ -103,7 +101,7 @@ struct WiFiClient
         xEventGroupWaitBits(m_eventGroup, EventGroupBits.CONNECTED, pdFALSE, pdFALSE, portMAX_DELAY);
     }
 
-    private @trusted
+    private @trusted nothrow @nogc
     void handleEvent(esp_event_base_t eventBase, int eventId, void* eventData)
     {
         if (eventBase == WIFI_EVENT)

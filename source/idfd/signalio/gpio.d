@@ -6,6 +6,7 @@ import idfd.signalio.signal : Signal;
 
 struct GPIOPin
 {
+nothrow @nogc:
     enum FIRST_PIN = 0;
     enum LAST_PIN = 39;
 

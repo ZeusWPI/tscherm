@@ -10,6 +10,7 @@ import ministd.heap_caps : dallocArrayCaps;
 
 struct DMADescriptorRing
 {
+nothrow @nogc:
     private lldesc_t[] m_descriptors;
 
     this(in size_t descriptorCount)
