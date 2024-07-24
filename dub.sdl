@@ -4,7 +4,7 @@ targetType "staticLibrary"
 dependency "bindbc-idf" version="~master" repository="git+https://github.com/Reavershark/bindbc-idf"
 dependency "nobetterc" version="~master" repository="git+https://github.com/Reavershark/nobetterc"
 
-subconfiguration "nobetterc" "minimal"
+subConfiguration "nobetterc" "classes"
 
 buildRequirements "allowWarnings" // Allow unknown target warning
 
