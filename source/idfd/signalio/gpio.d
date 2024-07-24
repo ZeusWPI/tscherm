@@ -13,8 +13,6 @@ nothrow @nogc:
     private uint m_pin;
 
 scope:
-    @disable this();
-
     this(uint pin)
     in (FIRST_PIN <= pin && pin <= LAST_PIN)
     {

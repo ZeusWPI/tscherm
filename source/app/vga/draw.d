@@ -34,8 +34,6 @@ nothrow @nogc:
     private Color m_textColor;
 
 scope:
-    @disable this();
-
     this(return scope FrameBuffer fb) return scope
     in (fb !is null)
     {

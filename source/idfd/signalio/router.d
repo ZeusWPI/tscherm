@@ -26,8 +26,6 @@ nothrow @nogc:
     private bool m_inverted;
 
 scope:
-    @disable this();
-
     private
     this(Type type, Signal signal, GPIOPin pin, bool inverted)
     {

@@ -33,8 +33,6 @@ struct WiFiClient
     private EventGroupHandle_t m_eventGroup;
 
 scope:
-    @disable this();
-
     this(string ssid, string password = "")
     in (ssid.length && ssid.length <= wifi_sta_config_t.ssid.length)
     in (password.length <= wifi_sta_config_t.password.length)

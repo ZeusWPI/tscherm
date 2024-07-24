@@ -25,8 +25,6 @@ struct HttpServer
     private Drawer* m_drawer;
 
 scope:
-    @disable this();
-
     this(return scope Drawer* drawer, ushort port, long recvTimeoutUsecs = 2_000_000)
     in (drawer !is null)
     {
@@ -89,8 +87,6 @@ scope:
             private UniqueHeapArray!C m_buf;
             private int m_received;
             private int m_currIndex;
-
-            @disable this();
 
             this(in int socket, in long recvTimeoutUsecs)
             {
