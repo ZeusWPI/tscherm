@@ -47,7 +47,8 @@ struct TScherm(TSchermCTConfig ctConfig)
         HttpServer m_httpServer;
     }
 
-    this(const TSchermRTConfig rtConfig) return scope
+scope:
+    this(const TSchermRTConfig rtConfig)
     {
         m_rtConfig = rtConfig;
 
@@ -101,7 +102,7 @@ struct TScherm(TSchermCTConfig ctConfig)
         }
     }
 
-    void drawImage(string source)() return scope
+    void drawImage(string source)()
     {
         immutable ubyte[] img = cast(immutable ubyte[]) import(source);
         m_fb.drawGrayscaleImage(img, Color.YELLOW, Color.BLACK);

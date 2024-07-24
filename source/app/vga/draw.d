@@ -34,7 +34,7 @@ nothrow @nogc:
     private Color m_textColor;
 
 scope:
-    this(return scope FrameBuffer fb) return scope
+    this(return scope FrameBuffer fb)
     in (fb !is null)
     {
         m_fb = fb;

@@ -146,7 +146,7 @@ scope:
      *   firstDescriptor = Pointer to a lldesc_t of which the next ptr can be followed infinitely.
      */
     @trusted
-    void startTransmitting(return scope lldesc_t* firstDescriptor) return scope
+    void startTransmitting(return scope lldesc_t* firstDescriptor)
     {
         startTransmittingCFunc(m_i2sDev, firstDescriptor);
     }
