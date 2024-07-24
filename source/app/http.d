@@ -13,7 +13,7 @@ import idfd.log : Logger;
 import ministd.string : startsWith;
 import ministd.typecons : UniqueHeapArray, SharedHeap;
 
-@safe nothrow @nogc:
+@safe:
 
 struct HttpServer
 {

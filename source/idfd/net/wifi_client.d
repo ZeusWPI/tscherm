@@ -17,7 +17,7 @@ import idf.esp_wifi : esp_netif_create_default_wifi_sta, esp_wifi_connect, esp_w
 
 import ministd.string : setStringz;
 
-@safe nothrow @nogc:
+@safe:
 
 struct WiFiClient
 {

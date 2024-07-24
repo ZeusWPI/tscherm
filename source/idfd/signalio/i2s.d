@@ -14,7 +14,7 @@ import ldc.attributes : optStrategy;
 
 import ministd.typecons : UniqueHeapArray;
 
-@safe nothrow @nogc:
+@safe:
 
 __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 
