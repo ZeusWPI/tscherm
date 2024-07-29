@@ -81,33 +81,4 @@ scope:
         dfree(m_lineBufferBlank);
         dfree(m_lineBufferVSync);
     }
-
-    void fillIteratingColorsDiagonal(string indexFunc = "x+y/vDivide")()
-    {
-        static immutable Color[] colors = [
-            Color.WHITE, Color.BLACK,
-        ];
-
-        for (size_t y = 0; y < m_vt.v.res; y += vDivide)
-            foreach (x; 0 .. m_vt.h.res)
-            {
-                auto index = mixin(indexFunc);
-                this[y, x] = colors[index % colors.length];
-            }
-    }
-
-    void drawGrayscaleImage(
-        in ubyte[] image,
-        in Color whiteColor = Color.WHITE,
-        in Color blackColor = Color.BLACK,
-    )
-    in (image.length == m_vt.v.res * m_vt.h.res)
-    {
-        for (size_t y = 0; y < m_vt.v.res; y += vDivide)
-            foreach (x; 0 .. m_vt.h.res)
-            {
-                ubyte imageByte = image[m_vt.h.res * y + x];
-                this[y, x] = imageByte > 0x40 ? whiteColor : blackColor;
-            }
-    }
 }

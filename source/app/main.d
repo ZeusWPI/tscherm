@@ -1,9 +1,9 @@
 module app.main;
 
-import app.http : HttpServer;
+import app.pong.drawer;
+import app.pong.tcp_server;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
-import app.vga.draw : Drawer;
 import app.vga.framebuffer;
 import app.vga.video_timings;
 
@@ -25,7 +25,7 @@ struct TSchermRTConfig
     const(VideoTimings) vt;
     int whitePin, cSyncPin;
     string ssid, password;
-    ushort httpPort;
+    ushort pongTcpServerPort;
 }
 
 struct TSchermCTConfig
@@ -42,9 +42,9 @@ struct TScherm(TSchermCTConfig ctConfig)
         UniqueHeap!FrameBufferRegularVDiv m_fb;
         DMADescriptorRing m_dmaDescriptorRing;
         I2SSignalGenerator m_signalGenerator;
-        Drawer m_drawer;
         WiFiClient m_wifiClient;
-        HttpServer m_httpServer;
+        PongDrawer m_pongDrawer;
+        PongTcpServer m_pongTcpServer;
     }
 
 scope:
@@ -54,7 +54,6 @@ scope:
 
         {
             log.info!"Initializing network (async)";
-
             m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
             m_wifiClient.startAsync;
         }
@@ -81,31 +80,26 @@ scope:
 
             m_signalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-            m_drawer = Drawer(m_fb.get);
-
             log.info!"VGA initialization complete";
         }
 
         {
             log.info!"Waiting for network to initialize";
-
             m_wifiClient.waitForConnection;
-
             log.info!"Network initialization complete";
         }
 
         {
-            // log.info!"Starting http server (in another task)";
-
-            // m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
-            // m_httpServer.start;
+            log.info!"Initializing PongDrawer";
+            m_pongDrawer = PongDrawer(m_fb);
+            log.info!"PongDrawer initialized";
         }
-    }
 
-    void drawImage(string source)()
-    {
-        immutable ubyte[] img = cast(immutable ubyte[]) import(source);
-        m_fb.drawGrayscaleImage(img, Color.YELLOW, Color.BLACK);
+        {
+            log.info!"Starting PongTcpServer";
+            m_pongTcpServer = PongTcpServer(&m_pongDrawer);
+            m_pongTcpServer.start;
+        }
     }
 }
 
@@ -122,34 +116,10 @@ void app_main()
         cSyncPin: 26,
         ssid: "Zeus WPI",
         password: "zeusisdemax",
-        httpPort: 80,
+        pongTcpServerPort: 777,
     );
     // dfmt on
     auto tScherm = TScherm!ctConfig(rtConfig);
-
-    log.info!"Rotating between some patterns";
-    while (true)
-    {
-        auto pause = (int t) @trusted => vTaskDelay(t);
-
-        tScherm.m_fb.fill(Color.WHITE);
-        pause(200);
-
-        // tScherm.drawImage!"zeus.raw";
-        // pause(800);
-        // tScherm.drawImage!"reavershark.raw";
-        // pause(800);
-
-        tScherm.m_fb.fillIteratingColorsDiagonal!"x+y/vDivide";
-        pause(200);
-        tScherm.m_fb.fillIteratingColorsDiagonal!"(x+y/vDivide) / 2";
-        pause(200);
-
-        tScherm.m_fb.fill(Color.BLACK);
-        pause(200);
-
-        log.info!"Completed a rotation";
-    }
 
     while (true)
     {

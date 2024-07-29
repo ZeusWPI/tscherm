@@ -15,6 +15,7 @@ abstract
 class FrameBuffer
 {
 nothrow @nogc:
+pragma(inline, true):
     enum log = Logger!"FrameBuffer"();
 
     protected const VideoTimings m_vt;
@@ -43,32 +44,36 @@ final scope:
 
     pure
     Color[] getLineWithSync(in size_t y)
-    in (y < m_vt.v.total)
+    // in (y < m_vt.v.total)
     {
         return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
     }
 
     pure
-    Color[] getLine(in size_t y)
-    in (y < m_vt.v.res)
+    Color[] getLine(in size_t y) // in (y < m_vt.v.res)
     {
         return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
     }
 
     pure
     Color[] opIndex(in size_t y)
-    in (y < m_vt.v.res)
+    // in (y < m_vt.v.res)
     {
         return getLine(y);
     }
 
     pure
-    ref Color opIndex(in size_t y, in size_t x)
-    in (y < m_vt.v.res)
-    in (x < m_vt.h.res)
+    ref Color opIndex(in size_t y, in size_t x) // in (y < m_vt.v.res)
+    // in (x < m_vt.h.res)
     {
         return getLine(y)[x ^ 2];
     }
+
+    pure
+    size_t opDollar(size_t dim : 0)() const => activeHeight;
+
+    pure
+    size_t opDollar(size_t dim : 1)() const => activeWidth;
 
     pure
     void fill(Color color)
