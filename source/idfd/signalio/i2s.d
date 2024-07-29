@@ -1,6 +1,5 @@
 module idfd.signalio.i2s;
 
-import idfd.signalio.idfd_signalio_i2s_c_code : finishClockSetupCFunc, startTransmittingCFunc;
 import idfd.signalio.signal : Signal;
 
 import idf.driver.periph_ctrl : periph_module_enable;
@@ -13,6 +12,7 @@ import idf.soc.rtc : rtc_clk_apll_enable;
 import ldc.attributes : optStrategy;
 
 import ministd.typecons : UniqueHeapArray;
+import ministd.volatile : VolatileRef;
 
 @safe:
 
@@ -22,7 +22,7 @@ struct I2SSignalGenerator
 {
 @optStrategy("none") :
     private uint m_i2sIndex;
-    private i2s_dev_t* m_i2sDev;
+    private VolatileRef!i2s_dev_t m_i2sDev;
     private uint m_bitCount;
 
 scope:
@@ -39,7 +39,7 @@ scope:
     {
         m_i2sIndex = i2sIndex;
         m_bitCount = bitCount;
-        (() @trusted => m_i2sDev = i2sDevices[m_i2sIndex])();
+        m_i2sDev = VolatileRef!i2s_dev_t((() @trusted => i2sDevices[m_i2sIndex])());
 
         enable;
         reset;
@@ -59,32 +59,39 @@ scope:
         (() @trusted => periph_module_enable(m))();
     }
 
-    private pure
+    private
     void reset()
     {
-        m_i2sDev.lc_conf.val |= 0xF;
-        m_i2sDev.lc_conf.val &= ~0xF;
-        m_i2sDev.conf.val |= 0xF;
-        m_i2sDev.conf.val &= ~0xF;
+        import idf.soc.i2s_reg;
+
+        enum uint lcConfResetFlags = I2S_IN_RST_M | I2S_OUT_RST_M | I2S_AHBM_RST_M | I2S_AHBM_FIFO_RST_M;
+        enum uint confResetFlags = I2S_RX_RESET_M | I2S_RX_FIFO_RESET_M | I2S_TX_RESET_M | I2S_TX_FIFO_RESET_M;
+
+        m_i2sDev.lc_conf.val |= lcConfResetFlags;
+        m_i2sDev.lc_conf.val &= ~lcConfResetFlags;
+
+        m_i2sDev.conf.val |= confResetFlags;
+        m_i2sDev.conf.val &= ~confResetFlags;
+
         while (m_i2sDev.state.rx_fifo_reset_back)
         {
         }
     }
 
-    private pure
+    private
     void setupParallelOutput()
     {
-        // Set parallel mode flags
-        m_i2sDev.conf2.val = 0;
-        m_i2sDev.conf2.lcd_en = 1;
-        m_i2sDev.conf2.lcd_tx_wrx2_en = 1;
-        m_i2sDev.conf2.lcd_tx_sdx2_en = 0;
-
         // Clear serial mode flags
         m_i2sDev.conf.tx_msb_right = 0;
         m_i2sDev.conf.tx_msb_shift = 0;
         m_i2sDev.conf.tx_mono = 0;
         m_i2sDev.conf.tx_short_sync = 0;
+
+        // Set parallel mode flags
+        m_i2sDev.conf2.val = 0;
+        m_i2sDev.conf2.lcd_en = 1;
+        m_i2sDev.conf2.lcd_tx_wrx2_en = 1;
+        m_i2sDev.conf2.lcd_tx_sdx2_en = 0;
     }
 
     private
@@ -118,10 +125,19 @@ scope:
         }();
         // dfmt on
 
-        (() @trusted => finishClockSetupCFunc(m_i2sDev))();
+        (() @trusted {
+            int clockN = 2, clockA = 1, clockB = 0, clockDiv = 1;
+
+            m_i2sDev.clkm_conf.val = 0;
+            m_i2sDev.clkm_conf.clka_en = 1;
+            m_i2sDev.clkm_conf.clkm_div_num = clockN;
+            m_i2sDev.clkm_conf.clkm_div_a = clockA;
+            m_i2sDev.clkm_conf.clkm_div_b = clockB;
+            m_i2sDev.sample_rate_conf.tx_bck_div_num = clockDiv;
+        })();
     }
 
-    private pure
+    private
     void prepareForTransmitting()
     {
         m_i2sDev.fifo_conf.val = 0;
@@ -148,7 +164,14 @@ scope:
     @trusted
     void startTransmitting(return scope lldesc_t* firstDescriptor)
     {
-        startTransmittingCFunc(m_i2sDev, firstDescriptor);
+        m_i2sDev.lc_conf.val = 0;
+        m_i2sDev.lc_conf.out_data_burst_en = 1;
+        m_i2sDev.lc_conf.outdscr_burst_en = 1;
+
+        m_i2sDev.out_link.addr = cast(uint) firstDescriptor;
+        m_i2sDev.out_link.start = 1;
+
+        m_i2sDev.conf.tx_start = 1;
     }
 
     UniqueHeapArray!Signal getSignals() const

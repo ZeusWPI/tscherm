@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS
-        "../../../source/idfd/signalio/idfd_signalio_i2s_c_code.c"
+        "/dev/null"
     INCLUDE_DIRS "."
 )
 target_link_libraries("${COMPONENT_LIB}" "${PROJECT_DIR}/dcode.a")

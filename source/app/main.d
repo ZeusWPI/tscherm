@@ -95,10 +95,10 @@ scope:
         }
 
         {
-            log.info!"Starting http server (in another task)";
+            // log.info!"Starting http server (in another task)";
 
-            m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
-            m_httpServer.start;
+            // m_httpServer = HttpServer(&m_drawer, m_rtConfig.httpPort);
+            // m_httpServer.start;
         }
     }
 
