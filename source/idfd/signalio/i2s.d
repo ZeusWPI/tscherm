@@ -20,7 +20,6 @@ __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 
 struct I2SSignalGenerator
 {
-@optStrategy("none") :
     private uint m_i2sIndex;
     private VolatileRef!i2s_dev_t m_i2sDev;
     private uint m_bitCount;
