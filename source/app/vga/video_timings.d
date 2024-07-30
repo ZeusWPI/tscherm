@@ -33,6 +33,14 @@ enum VideoTimings VIDEO_TIMINGS_320W_480H = {
     v: {res: 480, front: 11, sync: 2, back: 31},
 };
 
+enum VideoTimings VIDEO_TIMINGS_320W_480H_MAC = {
+    // min: 27_125_000
+    // recommended: 30_240_000
+    pixelClock: 30_240_000 / 2,
+    h: {front: 64 / 2, sync: 64 / 2, back: 96 / 2, res: 640 / 2},
+    v: {front: 3,  sync: 3,  back: 39, res: 480},
+};
+
 enum VideoTimings VIDEO_TIMINGS_640W_480H_MAC = {
     // min: 27_125_000
     // recommended: 30_240_000

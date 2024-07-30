@@ -13,15 +13,13 @@ import ministd.heap_caps : dallocArrayCaps;
 @safe nothrow @nogc:
 
 final
-class FrameBufferRegularVDiv : FrameBuffer
+class FrameBufferRegularVDiv(int vDivide) : FrameBuffer
 {
 nothrow @nogc:
     enum log = Logger!"FrameBuffer"();
 
     protected Color[] m_lineBufferBlank;
     protected Color[] m_lineBufferVSync;
-
-    int vDivide = 4;
 
 scope:
     this(in VideoTimings vt)

@@ -4,8 +4,8 @@ import app.pong.drawer;
 
 import idf.errno : EAGAIN, errno;
 import idf.freertos : vTaskDelay;
-import idf.sys.socket : AF_INET, bind, close, htonl, htons, IPADDR_ANY, IPPROTO_UDP, recvfrom,
-    SOCK_DGRAM, sockaddr, sockaddr_in, socket;
+import idf.sys.socket : AF_INET, bind, htonl, htons, IPADDR_ANY, IPPROTO_UDP, recvfrom,
+    MSG_DONTWAIT, SOCK_DGRAM, sockaddr, sockaddr_in, socket;
 
 import idfd.log : Logger;
 
@@ -42,39 +42,18 @@ scope:
             int bindResult = bind(m_socket, cast(sockaddr*)&bindAddr, bindAddr.sizeof);
             assert(bindResult == 0);
         }
+    }
 
+    @trusted
+    void recvOnce()
+    {
         static ubyte[16] buf;
-        int iteration;
-        while (true)
-        {
-            sockaddr_in other;
-            int received = recvfrom(m_socket, &buf[0], buf.length, 0, null, null);
+        sockaddr_in other;
+        int received = recvfrom(m_socket, &buf[0], buf.length, MSG_DONTWAIT, null, null);
 
-            if (received <= 0)
-            {
-                close(m_socket);
-                log.info!"Socket closed";
-                break;
-            }
-            if (received > 0)
-            {
-                // log.info!"Got %d bytes: %.*s"(received, received, &buf[0]);
-                foreach (ubyte b; buf[0 .. received])
-                {
-                    log.info!"%c"(b);
-                    m_pongDrawer.clearBar;
-                    if (buf[0] == 'j')
-                        m_pongDrawer.moveBarDown(16);
-                    else if (buf[0] == 'k')
-                        m_pongDrawer.moveBarUp(16);
-                    m_pongDrawer.drawBar;
-                }
-            }
-            if (++iteration == 1000)
-            {
-                iteration = 0;
-                vTaskDelay(1);
-            }
+        if (received > 0)
+        {
+            log.info!"Got %d bytes: %.*s"(received, received, &buf[0]);
         }
     }
 }

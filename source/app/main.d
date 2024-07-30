@@ -1,7 +1,7 @@
 module app.main;
 
-import app.pong.drawer;
-import app.pong.tcp_server;
+import app.pong.pong : Pong;
+import app.fullscreen_log : FullscreenLog;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
 import app.vga.framebuffer;
@@ -20,87 +20,8 @@ import ministd.typecons : UniqueHeap, UniqueHeapArray;
 
 @safe:
 
-struct TSchermRTConfig
+extern (C) void _d_callfinalizer(void* ptr)
 {
-    const(VideoTimings) vt;
-    int whitePin, cSyncPin;
-    string ssid, password;
-    ushort pongTcpServerPort;
-}
-
-struct TSchermCTConfig
-{
-}
-
-struct TScherm(TSchermCTConfig ctConfig)
-{
-    private
-    {
-        enum log = Logger!"TScherm"();
-
-        const TSchermRTConfig m_rtConfig;
-        UniqueHeap!FrameBufferRegularVDiv m_fb;
-        DMADescriptorRing m_dmaDescriptorRing;
-        I2SSignalGenerator m_signalGenerator;
-        WiFiClient m_wifiClient;
-        PongDrawer m_pongDrawer;
-        PongTcpServer m_pongTcpServer;
-    }
-
-scope:
-    this(const TSchermRTConfig rtConfig)
-    {
-        m_rtConfig = rtConfig;
-
-        {
-            log.info!"Initializing network (async)";
-            m_wifiClient = WiFiClient(rtConfig.ssid, rtConfig.password);
-            m_wifiClient.startAsync;
-        }
-
-        {
-            log.info!"Initializing VGA";
-
-            m_fb = typeof(m_fb).create(m_rtConfig.vt);
-            // dfmt off
-            m_signalGenerator = I2SSignalGenerator(
-                i2sIndex: 1,
-                bitCount: 8,
-                freq: m_rtConfig.vt.pixelClock,
-            );
-            // dfmt on
-            m_dmaDescriptorRing = DMADescriptorRing(m_rtConfig.vt.v.total);
-            m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.linesWithSync)());
-
-            UniqueHeapArray!Signal signals = m_signalGenerator.getSignals;
-            // dfmt off
-            route(from: signals.get[0], to: GPIOPin(m_rtConfig.whitePin), invert: false); // White
-            route(from: signals.get[6], to: GPIOPin(m_rtConfig.cSyncPin), invert: true ); // CSync
-            // dfmt on
-
-            m_signalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
-
-            log.info!"VGA initialization complete";
-        }
-
-        {
-            log.info!"Waiting for network to initialize";
-            m_wifiClient.waitForConnection;
-            log.info!"Network initialization complete";
-        }
-
-        {
-            log.info!"Initializing PongDrawer";
-            m_pongDrawer = PongDrawer(m_fb);
-            log.info!"PongDrawer initialized";
-        }
-
-        {
-            log.info!"Starting PongTcpServer";
-            m_pongTcpServer = PongTcpServer(&m_pongDrawer);
-            m_pongTcpServer.start;
-        }
-    }
 }
 
 extern (C)
@@ -108,18 +29,63 @@ void app_main()
 {
     enum log = Logger!"main"();
 
+    struct Config
+    {
+        static const VideoTimings vt = VIDEO_TIMINGS_320W_480H_MAC;
+        alias FrameBufferImpl = FrameBufferRegularVDiv!1;
+
+        enum int whitePin = 25;
+        enum int cSyncPin = 26;
+
+        enum string wifiSsid = "Zeus WPI";
+        enum string wifiPassword = "zeusisdemax";
+
+        enum ushort pongTcpServerPort = 777;
+    }
+
+    log.info!("Initializing " ~ Config.FrameBufferImpl.stringof);
+    scope fb = new Config.FrameBufferImpl(Config.vt);
+
+    log.info!"Initializing FullscreenLog";
+    FullscreenLog fullscreenLog = FullscreenLog(fb);
+
+    fullscreenLog.writeln("Initializing I2SSignalGenerator");
     // dfmt off
-    enum TSchermCTConfig ctConfig = TSchermCTConfig();
-    const TSchermRTConfig rtConfig = TSchermRTConfig(
-        vt: VIDEO_TIMINGS_640W_480H_MAC,
-        whitePin: 25,
-        cSyncPin: 26,
-        ssid: "Zeus WPI",
-        password: "zeusisdemax",
-        pongTcpServerPort: 777,
+    I2SSignalGenerator signalGenerator = I2SSignalGenerator(
+        i2sIndex: 1,
+        bitCount: 8,
+        freq: Config.vt.pixelClock,
     );
     // dfmt on
-    auto tScherm = TScherm!ctConfig(rtConfig);
+
+    fullscreenLog.writeln("Initializing DMADescriptorRing");
+    DMADescriptorRing dmaDescriptorRing = DMADescriptorRing(Config.vt.v.total);
+    dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) fb.linesWithSync)());
+
+    fullscreenLog.writeln("Routing GPIO signals");
+    UniqueHeapArray!Signal signals = signalGenerator.getSignals;
+    // dfmt off
+    route(from: signals.get[0], to: GPIOPin(Config.whitePin), invert: false); // White
+    route(from: signals.get[6], to: GPIOPin(Config.cSyncPin), invert: true ); // CSync
+    // dfmt on
+
+    fullscreenLog.writeln("Starting VGA output");
+    signalGenerator.startTransmitting(dmaDescriptorRing.firstDescriptor);
+
+    fullscreenLog.writeln("Initializing WifiClient (async)");
+    WiFiClient wifiClient = WiFiClient(Config.wifiSsid, Config.wifiPassword);
+    wifiClient.startAsync;
+
+    fullscreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
+    wifiClient.waitForConnection;
+
+    fullscreenLog.clear;
+    fullscreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
+    (() @trusted => vTaskDelay(100))();
+
+    fullscreenLog.writeln("Starting Pong");
+    (() @trusted => vTaskDelay(100))();
+    Pong pong = Pong(fb);
 
     while (true)
     {

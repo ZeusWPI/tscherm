@@ -6,7 +6,7 @@ import app.vga.framebuffer;
 
 import idfd.log : Logger;
 
-import ministd.traits : isInstanceOf;
+import ministd.math : clamp;
 
 @safe nothrow @nogc:
 
@@ -17,10 +17,11 @@ nothrow @nogc:
     private enum log = Logger!"PongDrawer"();
 
     private FrameBuffer m_fb;
-    private uint m_barWidth;
-    private uint m_barHeight;
-    private uint m_barYMax;
-    private uint m_barY;
+    private int m_barWidth;
+    private int m_barHeight;
+    private int m_barYMin;
+    private int m_barYMax;
+    private int m_barY;
 
 scope:
     this(return scope FrameBuffer fb)
@@ -29,9 +30,15 @@ scope:
         m_fb = fb;
         m_barWidth = 4;
         m_barHeight = (m_fb.activeHeight - 2) / 5;
-        m_barYMax = m_fb.activeHeight - 1 - m_barHeight;
-        m_barY = (m_fb.activeHeight - 2) / 2 + 1 - (m_barHeight / 2);
+        m_barYMin = 8;
+        m_barYMax = m_fb.activeHeight - 8 - m_barHeight;
 
+        reset;
+    }
+
+    void reset()
+    {
+        m_barY = (m_fb.activeHeight / 2) - (m_barHeight / 2);
         m_fb.clear;
         drawBorders;
         drawBar;
@@ -54,6 +61,7 @@ scope:
 
     void drawBar()
     {
+        // TODO: Clear and draw only the changed parts
         foreach (y; m_barY .. m_barY + m_barHeight)
         {
             auto line = m_fb[y];
@@ -61,18 +69,9 @@ scope:
         }
     }
 
-    void moveBarDown(short amount)
+    void moveBar(short amount)
     {
         m_barY += amount;
-        if (m_barY >= m_barYMax)
-            m_barY = m_barYMax;
-    }
-
-    void moveBarUp(short amount)
-    {
-        if (amount >= m_barY)
-            m_barY = 0;
-        else
-            m_barY -= amount;
+        m_barY = m_barY.clamp(m_barYMin, m_barYMax);
     }
 }

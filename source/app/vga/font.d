@@ -12,12 +12,12 @@ pure nothrow @nogc:
     enum uint glyphWidth = 16;
     enum uint glyphHeight = 32;
     enum uint imageLength = glyphWidth * glyphHeight * glyphCount;
-    alias ImageType = ubyte[glyphWidth * glyphCount][glyphHeight];
-    alias GlyphType = ubyte[glyphWidth][glyphHeight];
-    enum ImageType image = cast(ImageType) import(imagePath)[0 .. imageLength];
+    alias Image = ubyte[glyphWidth * glyphCount][glyphHeight];
+    alias Glyph = ubyte[glyphWidth][glyphHeight];
+    enum Image image = cast(Image) import(imagePath)[0 .. imageLength];
 
 const scope:
-    GlyphType opIndex(C)(C c) //
+    Glyph opIndex(C)(C c) //
     if (isSomeChar!C)
     {
         if (c < ' ' || '~' < c)
@@ -26,14 +26,14 @@ const scope:
         return this[index];
     }
 
-    GlyphType opIndex(I)(I i) //
+    Glyph opIndex(I)(I i) //
     if (!isSomeChar!I)
     in (i < glyphCount)
     {
         const size_t imageXBegin = i * glyphWidth;
         const size_t imageXEnd = imageXBegin + glyphWidth;
 
-        GlyphType ret;
+        Glyph ret;
         foreach (const y; 0 .. glyphHeight)
             ret[y] = image[y][imageXBegin .. imageXEnd];
         return ret;
