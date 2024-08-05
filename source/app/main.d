@@ -59,8 +59,8 @@ void app_main()
     // dfmt on
 
     fullscreenLog.writeln("Initializing DMADescriptorRing");
-    DMADescriptorRing dmaDescriptorRing = DMADescriptorRing(Config.vt.v.total);
-    dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) fb.linesWithSync)());
+    DMADescriptorRing dmaDescriptorRing = DMADescriptorRing(fb.allBuffers.length);
+    dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) fb.allBuffers)());
 
     fullscreenLog.writeln("Routing GPIO signals");
     UniqueHeapArray!Signal signals = signalGenerator.getSignals;

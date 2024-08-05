@@ -19,69 +19,68 @@ pragma(inline, true):
     enum log = Logger!"FrameBuffer"();
 
     protected const VideoTimings m_vt;
-    protected Color[][] m_lineBuffers;
+    protected Color[][] m_allBuffers; /// Cycically looping this array produces the video signal
+    protected Color[][] m_activeLineBuffers; /// The active parts of m_allBuffers, has dimensions `activeHeight * activeWidth`
 
     this(in VideoTimings vt)
     {
         m_vt = vt;
-        m_lineBuffers = dallocArray!(Color[])(m_vt.v.total);
     }
 
     ~this()
     {
-        dfree(m_lineBuffers);
     }
 
-final scope:
-    pure
-    size_t activeWidth() const => m_vt.h.res;
+scope:
+    final pure
+    size_t activeWidth() const
+        => m_vt.h.res;
 
-    pure
-    size_t activeHeight() const => m_vt.v.res;
+    final pure
+    size_t activeHeight() const
+        => m_vt.v.res;
 
-    pure
-    Color[][] linesWithSync() => m_lineBuffers;
+    final pure
+    Color[][] allBuffers()
+        => m_allBuffers;
 
-    pure
-    Color[] getLineWithSync(in size_t y)
-    // in (y < m_vt.v.total)
-    {
-        return m_lineBuffers[m_vt.v.resStart + y][0 .. m_vt.h.total];
-    }
+    final pure
+    Color[][] activeLineBuffers()
+        => m_activeLineBuffers;
 
-    pure
-    Color[] getLine(in size_t y) // in (y < m_vt.v.res)
-    {
-        return m_lineBuffers[m_vt.v.resStart + y][m_vt.h.resStart .. m_vt.h.resEnd];
-    }
-
-    pure
-    Color[] opIndex(in size_t y)
     // in (y < m_vt.v.res)
-    {
-        return getLine(y);
-    }
+    final pure
+    Color[] getLine(in size_t y)
+        => m_activeLineBuffers[y];
 
-    pure
-    ref Color opIndex(in size_t y, in size_t x) // in (y < m_vt.v.res)
+    final pure
+    Color[] opIndex(in size_t y)
+        => getLine(y);
+
     // in (x < m_vt.h.res)
-    {
-        return getLine(y)[x ^ 2];
-    }
+    final pure
+    ref Color opIndex(in size_t y, in size_t x)
+        => getLine(y)[x ^ 2];
 
     pure
-    size_t opDollar(size_t dim : 0)() const => activeHeight;
+    size_t opDollar(size_t dim : 0)() const
+        => activeHeight;
 
     pure
-    size_t opDollar(size_t dim : 1)() const => activeWidth;
+    size_t opDollar(size_t dim : 1)() const
+        => activeWidth;
 
-    pure
+    final pure
     void fill(Color color)
     {
         for (size_t y = 0; y < m_vt.v.res; y++)
             getLine(y)[] = color;
     }
 
-    pure
-    void clear() => fill(Color.BLACK);
+    final pure
+    void clear()
+        => fill(Color.BLACK);
+
+    abstract pure
+    void fullClear();
 }
