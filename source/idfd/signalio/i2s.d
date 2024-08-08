@@ -1,15 +1,20 @@
 module idfd.signalio.i2s;
 
+import idfd.log : Logger;
 import idfd.signalio.signal : Signal;
 
+import idf.esp_common.esp_err : ESP_ERROR_CHECK;
 import idf.driver.periph_ctrl : periph_module_enable;
+import idf.esp_hw_support.esp_intr_alloc;
 import idf.esp_rom.lldesc : lldesc_t;
 import idf.soc.gpio_sig_map : I2S0O_DATA_OUT0_IDX, I2S1O_DATA_OUT0_IDX;
+import idf.soc.i2s_reg : I2S_INT_CLR_REG, I2S_INT_RAW_REG;
 import idf.soc.i2s_struct : I2S0, I2S1, i2s_dev_t;
 import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE, periph_module_t;
 import idf.soc.rtc : rtc_clk_apll_enable;
+import idf.soc.soc : ETS_I2S0_INTR_SOURCE, ETS_I2S1_INTR_SOURCE;
 
-import ldc.attributes : optStrategy;
+import ldc.attributes : optStrategy, section;
 
 import ministd.typecons : UniqueHeapArray;
 import ministd.volatile : VolatileRef;
@@ -20,9 +25,16 @@ __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 
 struct I2SSignalGenerator
 {
+    private enum log = Logger!"I2SSignalGenerator"();
+
+    alias OnBufferCompleted = void function() nothrow @nogc;
+
     private uint m_i2sIndex;
-    private VolatileRef!i2s_dev_t m_i2sDev;
     private uint m_bitCount;
+    private OnBufferCompleted m_onBufferCompleted; // Function must have @section(".iram1")
+
+    private VolatileRef!i2s_dev_t m_i2sDev;
+    private intr_handle_t m_interruptHandle;
 
 scope:
     /** 
@@ -31,13 +43,17 @@ scope:
      *              This is equal to the number of generated signals.
      *   freq = Bit speed/frequency on each pin.
      *   i2sIndex = Which of the 2 I2S devices to use: `0` or `1`.
+     *   onBufferCompleted = Callback called from ISR each time the I2S peripheral has completely consumed
+     *                       a buffer and will switch to the next one.
      */
-    this(uint i2sIndex, uint bitCount, long freq)
+    this(uint i2sIndex, uint bitCount, long freq, return scope OnBufferCompleted onBufferCompleted = null)
     in (bitCount == 8 || bitCount == 16)
     in (i2sIndex == 0 || i2sIndex == 1)
     {
         m_i2sIndex = i2sIndex;
         m_bitCount = bitCount;
+        m_onBufferCompleted = onBufferCompleted;
+
         m_i2sDev = VolatileRef!i2s_dev_t((() @trusted => i2sDevices[m_i2sIndex])());
 
         enable;
@@ -45,6 +61,10 @@ scope:
         setupParallelOutput;
         setupClock(freq * 2 * (m_bitCount / 8));
         prepareForTransmitting;
+        if (m_onBufferCompleted)
+        {
+            allocateInterrupt;
+        }
         reset;
     }
 
@@ -136,6 +156,24 @@ scope:
         })();
     }
 
+    private @trusted
+    void allocateInterrupt()
+    {
+        log.info!"allocateInterrupt";
+        static immutable int[] interruptSource = [
+            ETS_I2S0_INTR_SOURCE, ETS_I2S1_INTR_SOURCE
+        ];
+        log.info!"m_interruptHandle: %p"(m_interruptHandle);
+        ESP_ERROR_CHECK(esp_intr_alloc(
+                interruptSource[m_i2sIndex],
+                ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM,
+                &handleInterrupt,
+                &this,
+                &m_interruptHandle,
+        ));
+        log.info!"m_interruptHandle: %p"(m_interruptHandle);
+    }
+
     private
     void prepareForTransmitting()
     {
@@ -170,6 +208,16 @@ scope:
         m_i2sDev.out_link.addr = cast(uint) firstDescriptor;
         m_i2sDev.out_link.start = 1;
 
+        m_i2sDev.int_clr.val = m_i2sDev.int_raw.val;
+        m_i2sDev.int_ena.val = 0;
+
+        if (m_interruptHandle)
+        {
+            m_i2sDev.int_ena.out_eof = 1;
+            log.info!"calling esp_intr_enable";
+            ESP_ERROR_CHECK(esp_intr_enable(m_interruptHandle));
+        }
+
         m_i2sDev.conf.tx_start = 1;
     }
 
@@ -196,5 +244,19 @@ scope:
         }
 
         return signals;
+    }
+
+    @section(".iram1")
+    private static @trusted nothrow @nogc extern (C)
+    void handleInterrupt(void* arg)
+    {
+        I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
+
+        // Takes too long?
+        // if (instance.m_i2sDev.int_raw.out_eof)
+        instance.m_onBufferCompleted();
+
+        // Clear interrupt flags
+        instance.m_i2sDev.int_clr.val = (instance.m_i2sDev.int_raw.val & 0xffffffc0) | 0x3f;
     }
 }

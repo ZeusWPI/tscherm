@@ -18,11 +18,12 @@ nothrow @nogc:
 pragma(inline, true):
     enum log = Logger!"FrameBuffer"();
 
-    protected const VideoTimings m_vt;
+    protected immutable(VideoTimings)* m_vt;
     protected Color[][] m_allBuffers; /// Cycically looping this array produces the video signal
     protected Color[][] m_activeLineBuffers; /// The active parts of m_allBuffers, has dimensions `activeHeight * activeWidth`
 
-    this(in VideoTimings vt)
+    this(immutable(VideoTimings)* vt)
+    in (vt !is null)
     {
         m_vt = vt;
     }

@@ -19,7 +19,7 @@ import ministd.string : setStringz;
 
 @safe:
 
-struct WiFiClient
+struct WifiClient
 {
     private enum log = Logger!"WifiClient"();
 

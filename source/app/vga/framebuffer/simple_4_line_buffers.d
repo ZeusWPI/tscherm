@@ -17,7 +17,8 @@ nothrow @nogc:
     private Color[] m_lineBufferColor2;
 
 scope:
-    this(in VideoTimings vt)
+    this(immutable(VideoTimings)* vt)
+    in (vt !is null)
     {
         super(vt);
 

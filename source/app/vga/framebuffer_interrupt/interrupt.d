@@ -1,7 +1,6 @@
-module app.vga.framebuffer.regular_v_div;
+module app.vga.framebuffer_interrupt.interrupt;
 
 import app.vga.color : Color;
-import app.vga.framebuffer.base : FrameBuffer;
 import app.vga.video_timings : VideoTimings;
 
 import idf.heap.caps : MALLOC_CAP_DMA;
@@ -9,26 +8,37 @@ import idf.heap.caps : MALLOC_CAP_DMA;
 import idfd.log : Logger;
 
 import ministd.heap_caps : dallocArrayCaps;
+import ministd.algorithm : swap;
 
 @safe nothrow @nogc:
 
-alias FrameBufferRegular = FrameBufferRegularVDiv!1;
-
-final
-class FrameBufferRegularVDiv(int vDivide) : FrameBuffer
+struct FrameBufferInterrupt(size_t batchSize = 8)
 {
 nothrow @nogc:
-    enum log = Logger!"FrameBufferRegularVDiv"();
+    enum log = Logger!"FrameBufferInterrupt"();
+
+    protected immutable(VideoTimings)* m_vt;
+    protected Color[][] m_allBuffers; /// Cycically looping this array produces the video signal
 
     protected Color[] m_bufferVBlankLine;
     protected Color[] m_bufferVSyncLine;
     protected Color[] m_bufferHFrontSyncBack;
 
+    protected size_t m_currLine;
+    protected Color[][] m_bothBatches;
+    protected Color[][] m_currBufferBatch;
+    protected Color[][] m_nextBufferBatch;
+
 scope:
-    this(immutable(VideoTimings)* vt)
+    @disable this();
+    @disable this(ref typeof(this));
+
+    void initialize(in immutable(VideoTimings)* vt)
     in (vt !is null)
     {
-        super(vt);
+        m_vt = vt;
+
+        assert(m_vt.v.res % (batchSize * 2) == 0); // Vertical res must be divisible by batch size * 2
 
         assert(m_vt.v.frontStart == 0); // Assume VideoTimings uses order: front, sync, back, res
 
@@ -37,15 +47,11 @@ scope:
         m_bufferHFrontSyncBack = dallocArrayCaps!Color(
             m_vt.h.front + m_vt.h.sync + m_vt.h.back, MALLOC_CAP_DMA);
 
-        m_activeLineBuffers = dallocArray!(Color[])(m_vt.v.res);
-        foreach (y, ref Color[] buf; m_activeLineBuffers)
-        {
-            size_t i = y % vDivide;
-            if (i == 0)
-                buf = dallocArrayCaps!Color(m_vt.h.res, MALLOC_CAP_DMA);
-            else
-                buf = m_activeLineBuffers[y - i];
-        }
+        m_bothBatches = dallocArray!(Color[])(batchSize * 2);
+        foreach (ref Color[] buf; m_bothBatches)
+            buf = dallocArrayCaps!Color(m_vt.h.res, MALLOC_CAP_DMA);
+        m_currBufferBatch = m_bothBatches[0 .. batchSize];
+        m_nextBufferBatch = m_bothBatches[batchSize .. $];
 
         // Lines with an active part use 2 buffers, the buffer for the inactive part (m_bufferHFrontSyncBack) is reused
         m_allBuffers = dallocArray!(Color[])(m_vt.v.total + m_vt.v.res);
@@ -63,45 +69,70 @@ scope:
                 else
                 {
                     size_t y = resBufferIndex / 2;
-                    buf = m_activeLineBuffers[y];
+                    buf = m_bothBatches[y % (batchSize * 2)];
                 }
             }
         }
 
         fullClear;
+
+        foreach (ref Color[] buf; m_nextBufferBatch)
+            buf[] = Color.WHITE;
     }
 
+    ~this()
+    {
+        if (m_allBuffers is null)
+            return;
+
+        dfree(m_allBuffers);
+
+        dfree(m_bufferVBlankLine);
+        dfree(m_bufferVSyncLine);
+        dfree(m_bufferHFrontSyncBack);
+
+        foreach (ref Color[] buf; m_bothBatches)
+            dfree(buf);
+        dfree(m_bothBatches);
+    }
+
+    pure pragma(inline, true)
+    size_t activeWidth() const
+        => m_vt.h.res;
+
+    pure pragma(inline, true)
+    size_t activeHeight() const
+        => m_vt.v.res;
+
+    pure pragma(inline, true)
+    Color[][] allBuffers()
+        => m_allBuffers;
+
     // dfmt off
-    override
     void fullClear()
     {
-        m_bufferVBlankLine[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLANK;
         m_bufferVBlankLine[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK;
         m_bufferVBlankLine[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.CSYNC;
         m_bufferVBlankLine[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK;
+        m_bufferVBlankLine[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.BLANK;
 
-        m_bufferVSyncLine[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.CSYNC;
         m_bufferVSyncLine[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.CSYNC;
         m_bufferVSyncLine[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.BLANK;
         m_bufferVSyncLine[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.CSYNC;
+        m_bufferVSyncLine[m_vt.h.resStart   .. m_vt.h.resEnd  ] = Color.CSYNC;
 
         m_bufferHFrontSyncBack[m_vt.h.frontStart .. m_vt.h.frontEnd] = Color.BLANK;
         m_bufferHFrontSyncBack[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.CSYNC;
         m_bufferHFrontSyncBack[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK;
 
-        for (size_t y; y < m_activeLineBuffers.length; y += vDivide)
-            m_activeLineBuffers[y][] = Color.BLACK;
+        foreach (ref Color[] buf; m_bothBatches)
+            buf[] = Color.BLACK;
     }
     // dfmt on
 
-    ~this()
+    pure
+    void swapBatches()
     {
-        dfree(m_allBuffers);
-        dfree(m_bufferVBlankLine);
-        dfree(m_bufferVSyncLine);
-        dfree(m_bufferHFrontSyncBack);
-        for (size_t y; y < m_activeLineBuffers.length; y += vDivide)
-            dfree(m_activeLineBuffers[y]);
-        dfree(m_activeLineBuffers);
+        swap(m_currBufferBatch, m_nextBufferBatch);
     }
 }
