@@ -24,7 +24,8 @@ nothrow @nogc:
     protected Color[] m_bufferVSyncLine;
     protected Color[] m_bufferHFrontSyncBack;
 
-    protected size_t m_currLine;
+    protected size_t m_currY;
+    protected size_t m_framesDrawn;
     protected Color[][] m_bothBatches;
     protected Color[][] m_currBufferBatch;
     protected Color[][] m_nextBufferBatch;
@@ -134,5 +135,27 @@ scope:
     void swapBatches()
     {
         swap(m_currBufferBatch, m_nextBufferBatch);
+        m_currY += batchSize;
+        if (m_currY >= m_vt.v.res)
+        {
+            m_currY = 0;
+            m_framesDrawn++;
+        }
     }
+
+    pure pragma(inline, true)
+    size_t currY() const
+        => m_currY;
+    
+    pure pragma(inline, true)
+    size_t framesDrawn() const
+        => m_framesDrawn;
+
+    pure pragma(inline, true)
+    inout(Color[])[] currBufferBatch() inout
+        => m_currBufferBatch;
+
+    pure pragma(inline, true)
+    inout(Color[])[] nextBufferBatch() inout
+        => m_nextBufferBatch;
 }

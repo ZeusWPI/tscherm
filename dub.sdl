@@ -40,4 +40,6 @@ buildType "debug" {
 }
 buildType "release" {
     dflags "-P-I${PACKAGE_DIR}/idf-project/release/build/config"
+    buildOptions "releaseMode" "optimize" "inline" "noBoundsCheck"
+    dflags "-O4"
 }

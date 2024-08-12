@@ -28,10 +28,6 @@ version = DebugLoopNotifications;
 
 @safe:
 
-extern (C) void _d_callfinalizer(void* ptr)
-{
-}
-
 struct TScherm
 {
     enum log = Logger!"TScherm"();
@@ -56,7 +52,7 @@ struct TScherm
 
     struct Config
     {
-        static immutable(VideoTimings)* vt = &VIDEO_TIMINGS_320W_480H_MAC;
+        static immutable(VideoTimings)* vt = &VIDEO_TIMINGS_640W_480H_MAC;
 
         enum size_t batchSize = 8;
 
@@ -151,12 +147,91 @@ struct TScherm
         // m_fullscreenLogActive = false;
         // m_pong = Pong(m_fb);
 
-        // logAll!"Initializing InterruptDrawer";
-        // m_interruptDrawer = InterruptDrawer();
+        logAll!"Initializing InterruptDrawer";
+        m_interruptDrawer.initialize;
+    }
+
+    private
+    void logAll(string fmt, Args...)(Args args)
+    {
+        log.info!fmt(args);
+        // if (m_fullscreenLogActive)
+        //     m_fullscreenLog.writeln(fmt);
+    }
+
+    private static @trusted extern (C)
+    void loopTaskEntrypoint(void* ignore)
+        => TScherm.instance.loop;
+
+    private @trusted
+    void loop()
+    {
+        // The first log from this task seems to take 0.5ms extra, so get it out of the way
+        log.info!"Loop task running";
+
+        while (true)
+        {
+            // dfmt off
+            uint message = (cast(uint function() @safe nothrow @nogc) {
+                return ulTaskGenericNotifyTake(
+                    uxIndexToWaitOn: 0,
+                    xClearCountOnExit: true,
+                    xTicksToWait: 10_000,
+                );
+            })();
+            // dfmt on
+
+            foreach (i; 0 .. message)
+                m_fb.swapBatches;
+
+            foreach (offset; 0 .. Config.batchSize)
+            {
+                // uint peekMessage = (cast(uint function() @safe nothrow @nogc) {
+                //     return ulTaskGenericNotifyTake(
+                //         uxIndexToWaitOn: 0,
+                //         xClearCountOnExit: false,
+                //         xTicksToWait: 0,
+                //     );
+                // })();
+                // if (peekMessage > 0)
+                //     break;
+                m_interruptDrawer.drawLine(
+                    m_fb.nextBufferBatch[offset],
+                    m_fb.currY + Config.batchSize + offset,
+                    m_fb.framesDrawn,
+                );
+            }
+
+            version (DebugLoopNotifications)
+            {
+                () @trusted {
+                    __gshared int loops;
+                    __gshared int messages;
+                    __gshared int zeroTotal;
+                    __gshared int moreThanOneMax;
+                    __gshared int moreThanOneTotal;
+                    loops++;
+                    if (message == 0)
+                        zeroTotal++;
+                    else
+                    {
+                        messages += message;
+                        if (message > 1)
+                        {
+                            moreThanOneTotal += message;
+                            if (message > moreThanOneMax)
+                                moreThanOneMax = message;
+                        }
+                    }
+                    if (loops % 10_000 == 0)
+                        log.info!"l=%d m=%d zt=%d mtom=%d mtot=%d"(loops, messages, zeroTotal, moreThanOneMax, moreThanOneTotal);
+                }();
+            }
+        }
     }
 
     @section(".iram1")
-    static @trusted nothrow @nogc
+    static @trusted nothrow @nogc extern(C)
     void onBufferCompleted()
     {
         enum bufferCount = 480 + 480 + 11 + 2 + 31;
@@ -186,65 +261,6 @@ struct TScherm
         else if (nextBuffer == bufferCount)
         {
             nextBuffer = 0;
-        }
-    }
-
-    private
-    void logAll(string fmt, Args...)(Args args)
-    {
-        log.info!fmt(args);
-        if (m_fullscreenLogActive)
-            m_fullscreenLog.writeln(fmt);
-    }
-
-    private static @trusted extern (C)
-    void loopTaskEntrypoint(void* ignore)
-        => TScherm.instance.loop;
-
-    private @trusted
-    void loop()
-    {
-        // The first log from this task seems to take 0.5ms extra, so get it out of the way
-        log.info!"Loop task running";
-
-        while (true)
-        {
-            // dfmt off
-            uint message = (cast(uint function() @safe nothrow @nogc) {
-                return ulTaskGenericNotifyTake(
-                    uxIndexToWaitOn: 0,
-                    xClearCountOnExit: true,
-                    xTicksToWait: 10_000,
-                );
-            })();
-            // dfmt on
-
-            m_fb.swapBatches;
-            // m_interruptDrawer.drawLine(buf:[], y:0);
-
-            version (DebugLoopNotifications)
-            {
-                static int loops;
-                static int messages;
-                static int zeroTotal;
-                static int moreThanOneMax;
-                static int moreThanOneTotal;
-                loops++;
-                if (message == 0)
-                    zeroTotal++;
-                else
-                {
-                    messages += message;
-                    if (message > 1)
-                    {
-                        moreThanOneTotal += message;
-                        if (message > moreThanOneMax)
-                            moreThanOneMax = message;
-                    }
-                }
-                if (loops % 10_000 == 0)
-                    log.info!"l=%d m=%d zt=%d mtom=%d mtot=%d"(loops, messages, zeroTotal, moreThanOneMax, moreThanOneTotal);
-            }
         }
     }
 }

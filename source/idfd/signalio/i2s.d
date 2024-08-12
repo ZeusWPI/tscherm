@@ -14,7 +14,7 @@ import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE, periph_modu
 import idf.soc.rtc : rtc_clk_apll_enable;
 import idf.soc.soc : ETS_I2S0_INTR_SOURCE, ETS_I2S1_INTR_SOURCE;
 
-import ldc.attributes : optStrategy, section;
+import ldc.attributes : section;
 
 import ministd.typecons : UniqueHeapArray;
 import ministd.volatile : VolatileRef;
@@ -23,11 +23,21 @@ import ministd.volatile : VolatileRef;
 
 __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 
+@section(".iram1")
+pragma(LDC_intrinsic, "ldc.bitop.vld")
+pure nothrow @nogc
+uint volatileLoad(uint* ptr);
+
+@section(".iram1")
+pragma(LDC_intrinsic, "ldc.bitop.vst")
+pure nothrow @nogc
+void volatileStore(uint* ptr, uint value);
+
 struct I2SSignalGenerator
 {
     private enum log = Logger!"I2SSignalGenerator"();
 
-    alias OnBufferCompleted = void function() nothrow @nogc;
+    alias OnBufferCompleted = extern (C) void function() nothrow @nogc;
 
     private uint m_i2sIndex;
     private uint m_bitCount;
@@ -252,11 +262,22 @@ scope:
     {
         I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
 
-        // Takes too long?
-        // if (instance.m_i2sDev.int_raw.out_eof)
-        instance.m_onBufferCompleted();
+        import idf.soc.i2s_reg : I2S_INT_RAW_REG, I2S_INT_CLR_REG;
+
+        uint* rawReg = cast(uint*) (instance.m_i2sIndex == 0 ? I2S_INT_RAW_REG!0 : I2S_INT_RAW_REG!1);
+        uint* clrReg = cast(uint*) (instance.m_i2sIndex == 0 ? I2S_INT_CLR_REG!0 : I2S_INT_CLR_REG!1);
+
+        uint rawFlags = volatileLoad(rawReg);
 
         // Clear interrupt flags
-        instance.m_i2sDev.int_clr.val = (instance.m_i2sDev.int_raw.val & 0xffffffc0) | 0x3f;
+        volatileStore(clrReg, (rawFlags & 0xffffffc0) | 0x3f);
+
+        // auto flags = cast(typeof(i2s_dev_t.int_raw)) rawFlags;
+        // if (flags.out_eof)
+        // instance.m_onBufferCompleted();
+
+        import app.main : TScherm;
+
+        TScherm.onBufferCompleted;
     }
 }
