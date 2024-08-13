@@ -12,7 +12,7 @@ import ministd.algorithm : swap;
 
 @safe nothrow @nogc:
 
-struct FrameBufferInterrupt(size_t batchSize = 8)
+struct FrameBufferInterrupt(size_t ct_lineBufferCount = 16)
 {
 nothrow @nogc:
     enum log = Logger!"FrameBufferInterrupt"();
@@ -24,11 +24,7 @@ nothrow @nogc:
     protected Color[] m_bufferVSyncLine;
     protected Color[] m_bufferHFrontSyncBack;
 
-    protected size_t m_currY;
-    protected size_t m_framesDrawn;
-    protected Color[][] m_bothBatches;
-    protected Color[][] m_currBufferBatch;
-    protected Color[][] m_nextBufferBatch;
+    protected Color[][] m_lineBuffers;
 
 scope:
     @disable this();
@@ -39,7 +35,7 @@ scope:
     {
         m_vt = vt;
 
-        assert(m_vt.v.res % (batchSize * 2) == 0); // Vertical res must be divisible by batch size * 2
+        assert(m_vt.v.res % ct_lineBufferCount == 0); // Vertical res must be divisible by line buffer count
 
         assert(m_vt.v.frontStart == 0); // Assume VideoTimings uses order: front, sync, back, res
 
@@ -48,11 +44,9 @@ scope:
         m_bufferHFrontSyncBack = dallocArrayCaps!Color(
             m_vt.h.front + m_vt.h.sync + m_vt.h.back, MALLOC_CAP_DMA);
 
-        m_bothBatches = dallocArray!(Color[])(batchSize * 2);
-        foreach (ref Color[] buf; m_bothBatches)
+        m_lineBuffers = dallocArray!(Color[])(ct_lineBufferCount);
+        foreach (ref Color[] buf; m_lineBuffers)
             buf = dallocArrayCaps!Color(m_vt.h.res, MALLOC_CAP_DMA);
-        m_currBufferBatch = m_bothBatches[0 .. batchSize];
-        m_nextBufferBatch = m_bothBatches[batchSize .. $];
 
         // Lines with an active part use 2 buffers, the buffer for the inactive part (m_bufferHFrontSyncBack) is reused
         m_allBuffers = dallocArray!(Color[])(m_vt.v.total + m_vt.v.res);
@@ -69,16 +63,13 @@ scope:
                     buf = m_bufferHFrontSyncBack;
                 else
                 {
-                    size_t y = resBufferIndex / 2;
-                    buf = m_bothBatches[y % (batchSize * 2)];
+                    size_t lineBufferIndex = (resBufferIndex / 2) % ct_lineBufferCount;
+                    buf = m_lineBuffers[lineBufferIndex];
                 }
             }
         }
 
         fullClear;
-
-        foreach (ref Color[] buf; m_nextBufferBatch)
-            buf[] = Color.WHITE;
     }
 
     ~this()
@@ -92,9 +83,9 @@ scope:
         dfree(m_bufferVSyncLine);
         dfree(m_bufferHFrontSyncBack);
 
-        foreach (ref Color[] buf; m_bothBatches)
+        foreach (ref Color[] buf; m_lineBuffers)
             dfree(buf);
-        dfree(m_bothBatches);
+        dfree(m_lineBuffers);
     }
 
     pure pragma(inline, true)
@@ -126,36 +117,12 @@ scope:
         m_bufferHFrontSyncBack[m_vt.h.syncStart  .. m_vt.h.syncEnd ] = Color.CSYNC;
         m_bufferHFrontSyncBack[m_vt.h.backStart  .. m_vt.h.backEnd ] = Color.BLANK;
 
-        foreach (ref Color[] buf; m_bothBatches)
-            buf[] = Color.BLACK;
+        foreach (ref Color[] buf; m_lineBuffers)
+            buf[] = Color.WHITE;
     }
     // dfmt on
 
-    pure
-    void swapBatches()
-    {
-        swap(m_currBufferBatch, m_nextBufferBatch);
-        m_currY += batchSize;
-        if (m_currY >= m_vt.v.res)
-        {
-            m_currY = 0;
-            m_framesDrawn++;
-        }
-    }
-
     pure pragma(inline, true)
-    size_t currY() const
-        => m_currY;
-    
-    pure pragma(inline, true)
-    size_t framesDrawn() const
-        => m_framesDrawn;
-
-    pure pragma(inline, true)
-    inout(Color[])[] currBufferBatch() inout
-        => m_currBufferBatch;
-
-    pure pragma(inline, true)
-    inout(Color[])[] nextBufferBatch() inout
-        => m_nextBufferBatch;
+    inout(Color)[] getLine(uint y) inout
+        => m_lineBuffers[y % ct_lineBufferCount];
 }

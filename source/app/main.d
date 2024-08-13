@@ -168,6 +168,10 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task running";
 
+        enum bufferCount = 480 + 480 + 11 + 2 + 31;
+        enum activeBufferCount = 480 + 480;
+
+        uint bufferIndex;
         while (true)
         {
             // dfmt off
@@ -180,24 +184,24 @@ struct TScherm
             })();
             // dfmt on
 
-            foreach (i; 0 .. message)
-                m_fb.swapBatches;
+            bufferIndex += message * (Config.batchSize * 2);
+            if (bufferIndex >= bufferCount)
+                bufferIndex = 0;
 
-            foreach (offset; 0 .. Config.batchSize)
+            uint y;
+            if (bufferIndex >= activeBufferCount)
+                y = 0;
+            else
+                y = bufferIndex / 2;
+
+
+            foreach (drawY; y .. y + Config.batchSize)
             {
-                // uint peekMessage = (cast(uint function() @safe nothrow @nogc) {
-                //     return ulTaskGenericNotifyTake(
-                //         uxIndexToWaitOn: 0,
-                //         xClearCountOnExit: false,
-                //         xTicksToWait: 0,
-                //     );
-                // })();
-                // if (peekMessage > 0)
-                //     break;
+                drawY %= Config.vt.v.res;
                 m_interruptDrawer.drawLine(
-                    m_fb.nextBufferBatch[offset],
-                    m_fb.currY + Config.batchSize + offset,
-                    m_fb.framesDrawn,
+                    m_fb.getLine(drawY),
+                    drawY,
+                    0,
                 );
             }
 
