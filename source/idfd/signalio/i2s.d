@@ -23,16 +23,6 @@ import ministd.volatile : VolatileRef;
 
 __gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
 
-@section(".iram1")
-pragma(LDC_intrinsic, "ldc.bitop.vld")
-pure nothrow @nogc
-uint volatileLoad(uint* ptr);
-
-@section(".iram1")
-pragma(LDC_intrinsic, "ldc.bitop.vst")
-pure nothrow @nogc
-void volatileStore(uint* ptr, uint value);
-
 struct I2SSignalGenerator
 {
     private enum log = Logger!"I2SSignalGenerator"();
@@ -260,12 +250,15 @@ scope:
     private static @trusted nothrow @nogc extern (C)
     void handleInterrupt(void* arg)
     {
-        I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
-
+        import core.volatile : volatileLoad, volatileStore;
         import idf.soc.i2s_reg : I2S_INT_RAW_REG, I2S_INT_CLR_REG;
 
-        uint* rawReg = cast(uint*) (instance.m_i2sIndex == 0 ? I2S_INT_RAW_REG!0 : I2S_INT_RAW_REG!1);
-        uint* clrReg = cast(uint*) (instance.m_i2sIndex == 0 ? I2S_INT_CLR_REG!0 : I2S_INT_CLR_REG!1);
+        I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
+
+        uint i2sIndex = instance.m_i2sIndex;
+
+        uint* rawReg = cast(uint*) (i2sIndex == 0 ? I2S_INT_RAW_REG!0 : I2S_INT_RAW_REG!1);
+        uint* clrReg = cast(uint*) (i2sIndex == 0 ? I2S_INT_CLR_REG!0 : I2S_INT_CLR_REG!1);
 
         uint rawFlags = volatileLoad(rawReg);
 
