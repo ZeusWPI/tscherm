@@ -91,7 +91,6 @@ struct TScherm
             i2sIndex: 1,
             bitCount: 8,
             freq: Config.vt.pixelClock,
-            onBufferCompleted: &onBufferCompleted,
         );
         // dfmt on
 
