@@ -250,19 +250,19 @@ scope:
 
         uint i2sIndex = instance.m_i2sIndex;
 
-        uint* rawReg = cast(uint*) (i2sIndex == 0 ? I2S_INT_RAW_REG!0 : I2S_INT_RAW_REG!1);
-        uint* clrReg = cast(uint*) (i2sIndex == 0 ? I2S_INT_CLR_REG!0 : I2S_INT_CLR_REG!1);
+        uint* rawReg = cast(uint*)(i2sIndex == 0 ? I2S_INT_RAW_REG!0 : I2S_INT_RAW_REG!1);
+        uint* clrReg = cast(uint*)(i2sIndex == 0 ? I2S_INT_CLR_REG!0 : I2S_INT_CLR_REG!1);
 
         uint rawFlags = volatileLoad(rawReg);
 
         // Clear interrupt flags
         volatileStore(clrReg, (rawFlags & 0xffffffc0) | 0x3f);
 
-        // auto flags = cast(typeof(i2s_dev_t.int_raw)) rawFlags;
-        // if (flags.out_eof)
+        if (rawFlags & (1 << 12))
+        {
+            import app.main : TScherm;
 
-        import app.main : TScherm;
-
-        TScherm.onBufferCompleted;
+            TScherm.onBufferCompleted;
+        }
     }
 }

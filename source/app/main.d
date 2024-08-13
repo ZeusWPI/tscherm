@@ -9,9 +9,9 @@ import app.vga.framebuffer_interrupt.interrupt;
 import app.vga.framebuffer_interrupt.interrupt_drawer;
 import app.vga.video_timings;
 
-import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake, ulTaskNotifyTake,
-    vTaskDelay, vTaskGenericNotifyGiveFromISR, vTaskSuspend, xTaskCreate, xTaskGetCurrentTaskHandle,
-    xTaskCreatePinnedToCore;
+import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake,
+    vTaskDelay, xTaskGenericNotifyFromISR, vTaskSuspend, xTaskGetCurrentTaskHandle,
+    xTaskCreatePinnedToCore, eNotifyAction;
 
 import idfd.log : Logger;
 import idfd.net.wifi_client : WifiClient;
@@ -23,8 +23,6 @@ import idfd.signalio.signal : Signal;
 import ldc.attributes : section;
 
 import ministd.typecons : UniqueHeap, UniqueHeapArray;
-
-version = DebugLoopNotifications;
 
 @safe:
 
@@ -184,9 +182,7 @@ struct TScherm
             })();
             // dfmt on
 
-            bufferIndex += message * (Config.batchSize * 2);
-            if (bufferIndex >= bufferCount)
-                bufferIndex = 0;
+            bufferIndex = message;
 
             uint y;
             if (bufferIndex >= activeBufferCount)
@@ -204,32 +200,6 @@ struct TScherm
                     0,
                 );
             }
-
-            version (DebugLoopNotifications)
-            {
-                () @trusted {
-                    __gshared int loops;
-                    __gshared int messages;
-                    __gshared int zeroTotal;
-                    __gshared int moreThanOneMax;
-                    __gshared int moreThanOneTotal;
-                    loops++;
-                    if (message == 0)
-                        zeroTotal++;
-                    else
-                    {
-                        messages += message;
-                        if (message > 1)
-                        {
-                            moreThanOneTotal += message;
-                            if (message > moreThanOneMax)
-                                moreThanOneMax = message;
-                        }
-                    }
-                    if (loops % 10_000 == 0)
-                        log.info!"l=%d m=%d zt=%d mtom=%d mtot=%d"(loops, messages, zeroTotal, moreThanOneMax, moreThanOneTotal);
-                }();
-            }
         }
     }
 
@@ -240,7 +210,7 @@ struct TScherm
         enum bufferCount = 480 + 480 + 11 + 2 + 31;
         enum activeBufferCount = 480 + 480;
 
-        __gshared int nextBuffer;
+        __gshared uint nextBuffer;
 
         nextBuffer++;
         if (nextBuffer <= activeBufferCount)
@@ -248,16 +218,15 @@ struct TScherm
             // * 2 because we are also counting hozirontal overscan buffers
             if (nextBuffer % (Config.batchSize * 2) == 0)
             {
-                // Notify the application that the i2s peripheral is done with the previous batch
-                // and has started using the next one
                 // dfmt off
-                (cast(void function() @safe nothrow @nogc) {
-                    vTaskGenericNotifyGiveFromISR(
-                        xTaskToNotify: TScherm.s_instance.m_loopTask,
-                        uxIndexToNotify: 0,
-                        pxHigherPriorityTaskWoken: null,
-                    );
-                })();
+                xTaskGenericNotifyFromISR(
+                    xTaskToNotify: TScherm.s_instance.m_loopTask,
+                    uxIndexToNotify: 0,
+                    ulValue: nextBuffer,
+                    eAction: eNotifyAction.eSetValueWithOverwrite,
+                    pulPreviousNotificationValue: null,
+                    pxHigherPriorityTaskWoken: null,
+                );
                 // dfmt on
             }
         }
