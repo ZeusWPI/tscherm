@@ -31,7 +31,6 @@ struct I2SSignalGenerator
 
     private uint m_i2sIndex;
     private uint m_bitCount;
-    private OnBufferCompleted m_onBufferCompleted; // Function must have @section(".iram1")
 
     private VolatileRef!i2s_dev_t m_i2sDev;
     private intr_handle_t m_interruptHandle;
@@ -43,16 +42,13 @@ scope:
      *              This is equal to the number of generated signals.
      *   freq = Bit speed/frequency on each pin.
      *   i2sIndex = Which of the 2 I2S devices to use: `0` or `1`.
-     *   onBufferCompleted = Callback called from ISR each time the I2S peripheral has completely consumed
-     *                       a buffer and will switch to the next one.
      */
-    this(uint i2sIndex, uint bitCount, long freq, return scope OnBufferCompleted onBufferCompleted = null)
+    this(uint i2sIndex, uint bitCount, long freq)
     in (bitCount == 8 || bitCount == 16)
     in (i2sIndex == 0 || i2sIndex == 1)
     {
         m_i2sIndex = i2sIndex;
         m_bitCount = bitCount;
-        m_onBufferCompleted = onBufferCompleted;
 
         m_i2sDev = VolatileRef!i2s_dev_t((() @trusted => i2sDevices[m_i2sIndex])());
 
@@ -61,10 +57,7 @@ scope:
         setupParallelOutput;
         setupClock(freq * 2 * (m_bitCount / 8));
         prepareForTransmitting;
-        if (m_onBufferCompleted)
-        {
-            allocateInterrupt;
-        }
+        allocateInterrupt;
         reset;
     }
 
@@ -267,7 +260,6 @@ scope:
 
         // auto flags = cast(typeof(i2s_dev_t.int_raw)) rawFlags;
         // if (flags.out_eof)
-        // instance.m_onBufferCompleted();
 
         import app.main : TScherm;
 
