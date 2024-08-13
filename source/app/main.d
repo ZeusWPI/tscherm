@@ -190,7 +190,6 @@ struct TScherm
             else
                 y = bufferIndex / 2;
 
-
             foreach (drawY; y .. y + Config.batchSize)
             {
                 drawY %= Config.vt.v.res;
