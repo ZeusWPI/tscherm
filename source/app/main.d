@@ -9,8 +9,9 @@ import app.vga.framebuffer_interrupt.interrupt;
 import app.vga.framebuffer_interrupt.interrupt_drawer;
 import app.vga.video_timings;
 
+import idf.esp_rom.lldesc : lldesc_t;
 import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake,
-    vTaskDelay, xTaskGenericNotifyFromISR, vTaskSuspend, xTaskGetCurrentTaskHandle,
+    vTaskDelay, xTaskGenericNotifyFromISR, vTaskSuspend,
     xTaskCreatePinnedToCore, eNotifyAction;
 
 import idfd.log : Logger;
@@ -23,6 +24,9 @@ import idfd.signalio.signal : Signal;
 import ldc.attributes : section;
 
 import ministd.typecons : UniqueHeap, UniqueHeapArray;
+
+import core.volatile : volatileLoad;
+import idf.soc.i2s_reg : REG_I2S_BASE;
 
 @safe:
 
@@ -63,7 +67,7 @@ struct TScherm
         enum ushort pongTcpServerPort = 777;
     }
 
-    private FrameBufferInterrupt!(Config.batchSize) m_fb;
+    private FrameBufferInterrupt!16 m_fb;
     private FullscreenLog m_fullscreenLog;
     private bool m_fullscreenLogActive;
     private I2SSignalGenerator m_signalGenerator;
@@ -95,6 +99,19 @@ struct TScherm
         logAll!"Initializing DMADescriptorRing";
         m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
         m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.allBuffers)());
+
+        logAll!"Setting descriptor eof flags";
+        foreach (i, ref lldesc_t desc; m_dmaDescriptorRing.descriptors)
+            if (Config.vt.v.resStart <= i)
+            {
+                uint resBufferIndex = i - Config.vt.v.resStart;
+                if (resBufferIndex % 2 == 1)
+                {
+                    uint y = resBufferIndex / 2;
+                    if (y % 8 == 7)
+                        desc.eof = 1;
+                }
+            }
 
         // dfmt off
         logAll!"Routing GPIO signals";
@@ -166,14 +183,10 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task running";
 
-        enum bufferCount = 480 + 480 + 11 + 2 + 31;
-        enum activeBufferCount = 480 + 480;
-
-        uint bufferIndex;
         while (true)
         {
             // dfmt off
-            uint message = (cast(uint function() @safe nothrow @nogc) {
+            uint currY = (cast(uint function() @safe nothrow @nogc) {
                 return ulTaskGenericNotifyTake(
                     uxIndexToWaitOn: 0,
                     xClearCountOnExit: true,
@@ -182,15 +195,7 @@ struct TScherm
             })();
             // dfmt on
 
-            bufferIndex = message;
-
-            uint y;
-            if (bufferIndex >= activeBufferCount)
-                y = 0;
-            else
-                y = bufferIndex / 2;
-
-            foreach (drawY; y .. y + Config.batchSize)
+            foreach (drawY; currY + 8 .. currY + 16)
             {
                 drawY %= Config.vt.v.res;
                 m_interruptDrawer.drawLine(
@@ -203,36 +208,25 @@ struct TScherm
     }
 
     @section(".iram1")
-    static @trusted nothrow @nogc extern(C)
+    static @trusted nothrow @nogc extern (C)
     void onBufferCompleted()
     {
-        enum bufferCount = 480 + 480 + 11 + 2 + 31;
-        enum activeBufferCount = 480 + 480;
+        __gshared uint currY;
 
-        __gshared uint nextBuffer;
+        currY += 8;
+        if (currY >= 480)
+            currY = 0;
 
-        nextBuffer++;
-        if (nextBuffer <= activeBufferCount)
-        {
-            // * 2 because we are also counting hozirontal overscan buffers
-            if (nextBuffer % (Config.batchSize * 2) == 0)
-            {
-                // dfmt off
-                xTaskGenericNotifyFromISR(
-                    xTaskToNotify: TScherm.s_instance.m_loopTask,
-                    uxIndexToNotify: 0,
-                    ulValue: nextBuffer,
-                    eAction: eNotifyAction.eSetValueWithOverwrite,
-                    pulPreviousNotificationValue: null,
-                    pxHigherPriorityTaskWoken: null,
-                );
-                // dfmt on
-            }
-        }
-        else if (nextBuffer == bufferCount)
-        {
-            nextBuffer = 0;
-        }
+        // dfmt off
+        xTaskGenericNotifyFromISR(
+            xTaskToNotify: TScherm.s_instance.m_loopTask,
+            uxIndexToNotify: 0,
+            ulValue: currY,
+            eAction: eNotifyAction.eSetValueWithOverwrite,
+            pulPreviousNotificationValue: null,
+            pxHigherPriorityTaskWoken: null,
+        );
+        // dfmt on
     }
 }
 
@@ -243,6 +237,6 @@ void app_main()
 
     while (true)
     {
-        (() @trusted => vTaskSuspend(null))();
+        vTaskSuspend(null);
     }
 }
