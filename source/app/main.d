@@ -14,6 +14,7 @@ import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake,
     vTaskDelay, xTaskGenericNotifyFromISR, vTaskSuspend,
     xTaskCreatePinnedToCore, eNotifyAction;
 
+import idf.esp_timer : esp_timer_get_time;
 import idfd.log : Logger;
 import idfd.net.wifi_client : WifiClient;
 import idfd.signalio.gpio : GPIOPin;
@@ -131,7 +132,7 @@ struct TScherm
             auto result = xTaskCreatePinnedToCore(
                 pvTaskCode: &TScherm.loopTaskEntrypoint,
                 pcName: "loop",
-                usStackDepth: 2000,
+                usStackDepth: 4000,
                 pvParameters: null,
                 uxPriority: 10,
                 pvCreatedTask: &m_loopTask,
@@ -183,18 +184,24 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task running";
 
+        long lines;
+        long totalIdleTime;
+        long totalDrawTime;
+
         while (true)
         {
+            long idleStartTime = esp_timer_get_time;
             // dfmt off
-            uint currY = (cast(uint function() @safe nothrow @nogc) {
-                return ulTaskGenericNotifyTake(
-                    uxIndexToWaitOn: 0,
-                    xClearCountOnExit: true,
-                    xTicksToWait: 10_000,
-                );
-            })();
+            uint currY = ulTaskGenericNotifyTake(
+                uxIndexToWaitOn: 0,
+                xClearCountOnExit: true,
+                xTicksToWait: 10_000,
+            );
             // dfmt on
+            if (currY != 8)
+                totalIdleTime += esp_timer_get_time - idleStartTime;
 
+            long drawStartTime = esp_timer_get_time;
             foreach (drawY; currY + 8 .. currY + 16)
             {
                 drawY %= Config.vt.v.res;
@@ -202,6 +209,20 @@ struct TScherm
                     m_fb.getLine(drawY),
                     drawY,
                     0,
+                );
+            }
+            if (currY != 8)
+                totalDrawTime += esp_timer_get_time - drawStartTime;
+
+            if (currY != 8)
+                lines += 8;
+
+            if (lines % 10_000 == 0)
+            {
+                log.info!"line %lld: avgIdle=%llf avgDraw=%llf"(
+                    lines,
+                    1.0 * totalIdleTime / lines,
+                    1.0 * totalDrawTime / lines,
                 );
             }
         }
