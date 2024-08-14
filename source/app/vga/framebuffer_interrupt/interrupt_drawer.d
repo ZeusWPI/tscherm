@@ -2,6 +2,8 @@ module app.vga.framebuffer_interrupt.interrupt_drawer;
 
 import app.vga.color : Color;
 
+import ministd.algorithm : swap;
+
 @safe nothrow @nogc:
 
 struct InterruptDrawer
@@ -22,5 +24,10 @@ struct InterruptDrawer
 
         buf[0 .. y] = Color.WHITE;
         buf[y .. $] = Color.BLACK;
+
+        if (y & 1)
+        {
+            swap(buf[y - 1], buf[y]);
+        }
     }
 }
