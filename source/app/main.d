@@ -49,7 +49,7 @@ struct TScherm
         enum uint bitCount = 8;
 
         enum int[] colorPins = [14, 27, 16, 17, 25, 26];
-        enum int cSyncPin = 26;
+        enum int cSyncPin = 12;
 
         alias font = Font!();
 
