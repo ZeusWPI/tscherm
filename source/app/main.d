@@ -51,12 +51,12 @@ struct TScherm
         enum int[] colorPins = [14, 27, 16, 17, 25, 26];
         enum int cSyncPin = 12;
 
-        alias font = Font!();
+        // alias font = Font!();
 
-        enum string wifiSsid = "Zeus WPI";
-        enum string wifiPassword = "zeusisdemax";
+        // enum string wifiSsid = "Zeus WPI";
+        // enum string wifiPassword = "zeusisdemax";
 
-        enum ushort pongTcpServerPort = 777;
+        // enum ushort pongTcpServerPort = 777;
 
         static assert(lineBufferCount % drawBatchSize == 0);
         static assert(drawBatchSize <= lineBufferCount / 2);
@@ -69,10 +69,10 @@ struct TScherm
     private DMADescriptorRing m_dmaDescriptorRing;
 
     private InterruptDrawer m_interruptDrawer;
-    private FullscreenLog!(Config.vt.h.res, Config.vt.v.res, Config.font) m_fullscreenLog;
-    private bool m_fullscreenLogActive;
-    private WifiClient m_wifiClient;
-    private Pong m_pong;
+    // private FullscreenLog!(Config.vt.h.res, Config.vt.v.res, Config.font) m_fullscreenLog;
+    // private bool m_fullscreenLogActive;
+    // private WifiClient m_wifiClient;
+    // private Pong m_pong;
 
     private
     void initialize()
@@ -124,7 +124,10 @@ struct TScherm
         logAll!"Starting VGA output";
         m_i2sSignalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-        logAll!"Initializing FullscreenLog";
+        logAll!"Initializing InterruptDrawer";
+        m_interruptDrawer.initialize;
+
+        // logAll!"Initializing FullscreenLog";
         // m_fullscreenLog = FullscreenLog(m_fb);
         // m_fullscreenLogActive = true;
 
@@ -143,9 +146,6 @@ struct TScherm
         // (() @trusted => vTaskDelay(100))();
         // m_fullscreenLogActive = false;
         // m_pong = Pong(m_fb);
-
-        logAll!"Initializing InterruptDrawer";
-        m_interruptDrawer.initialize;
     }
 
     private

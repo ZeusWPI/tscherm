@@ -30,7 +30,13 @@ struct InterruptDrawer
         // (1629) TScherm: line 40000: avgIdle=28.936075 avgDraw=2.201550
         buf[0 .. y] = Color.WHITE;
         buf[y .. $] = Color.BLACK;
-        swap(buf[y], buf[y ^ 2]);
+
+        // Little endian to ... medium endian?
+        uint wordStart = y & ~3;
+        swap(buf[wordStart], buf[wordStart + 3]);
+        swap(buf[wordStart + 1], buf[wordStart + 2]);
+        swap(buf[wordStart], buf[wordStart + 1]);
+        swap(buf[wordStart + 2], buf[wordStart + 3]);
 
         // (690) TScherm: line 10000: avgIdle=29.587200 avgDraw=1.902300
         // (1003) TScherm: line 20000: avgIdle=29.350650 avgDraw=1.900150
