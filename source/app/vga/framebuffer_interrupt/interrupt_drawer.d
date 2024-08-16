@@ -14,7 +14,7 @@ struct InterruptDrawer
     {
     }
 
-    void drawLine(Color[] buf, uint y, uint frame)
+    void drawLine(Color[] buf, uint y)
     {
         // uint i = (y + frame / 30) % 4;
         // if (i == 0)

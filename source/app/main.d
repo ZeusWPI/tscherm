@@ -43,6 +43,7 @@ struct TScherm
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
         enum size_t lineBufferCount = 16;
+        enum size_t drawBatchSize = 8;
 
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
@@ -56,6 +57,9 @@ struct TScherm
         enum string wifiPassword = "zeusisdemax";
 
         enum ushort pongTcpServerPort = 777;
+
+        static assert(lineBufferCount % drawBatchSize == 0);
+        static assert(drawBatchSize <= lineBufferCount / 2);
     }
 
     private TaskHandle_t m_loopTask;
@@ -92,36 +96,29 @@ struct TScherm
         logAll!("Initializing FrameBuffer");
         m_fb.initialize;
 
-        logAll!"Initializing I2SSignalGenerator";
-        m_i2sSignalGenerator.initialize(m_loopTask);
-
         logAll!"Initializing DMADescriptorRing";
         m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
         m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.allBuffers)());
 
+        logAll!"Initializing I2SSignalGenerator";
+        m_i2sSignalGenerator.initialize(m_loopTask);
+
         logAll!"Setting descriptor eof flags";
-        foreach (i, ref lldesc_t desc; m_dmaDescriptorRing.descriptors)
-            if (Config.vt.v.resStart <= i)
-            {
-                uint resBufferIndex = i - Config.vt.v.resStart;
-                if (resBufferIndex % 2 == 1)
-                {
-                    uint y = resBufferIndex / 2;
-                    if (y % 8 == 7)
-                        desc.eof = 1;
-                }
-            }
+        // dfmt off
+        for (
+            size_t i = Config.vt.v.resStart + Config.drawBatchSize * 2 - 1;
+            i < m_dmaDescriptorRing.descriptors.length;
+            i += Config.drawBatchSize * 2
+        )
+            m_dmaDescriptorRing.descriptors[i].eof = 1;
+        // dfmt on
 
         // dfmt off
         logAll!"Routing GPIO signals";
         UniqueHeapArray!Signal signals = m_i2sSignalGenerator.getSignals;
-        route(from: signals.get[0], to: GPIOPin(14), invert: false); // White
-        route(from: signals.get[1], to: GPIOPin(27), invert: false); // White
-        route(from: signals.get[2], to: GPIOPin(16), invert: false); // White
-        route(from: signals.get[3], to: GPIOPin(17), invert: false); // White
-        route(from: signals.get[4], to: GPIOPin(25), invert: false); // White
-        route(from: signals.get[5], to: GPIOPin(26), invert: false); // White
-        route(from: signals.get[7], to: GPIOPin(12), invert: true ); // CSync
+        static foreach(i, int pin; Config.colorPins)
+            route(from: signals.get[i], to: GPIOPin(pin), invert: false);
+        route(from: signals.get[$ - 1], to: GPIOPin(Config.cSyncPin), invert: true);
         // dfmt on
 
         logAll!"Starting VGA output";
@@ -169,14 +166,8 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task running";
 
-        // long lines;
-        // long totalIdleTime;
-        // long totalDrawTime;
-
         while (true)
         {
-            // long idleStartTime = esp_timer_get_time;
-
             // dfmt off
             const size_t currDescAddr = ulTaskGenericNotifyTake(
                 uxIndexToWaitOn: 0,
@@ -184,19 +175,6 @@ struct TScherm
                 xTicksToWait: 10_000,
             );
             // dfmt on
-
-            // if (currY != 8)
-            //     totalIdleTime += esp_timer_get_time - idleStartTime;
-
-            // log.info!"===";
-            // log.info!"Dumping i2s regs";
-            // for (int i = 0; i < 0x64; i += 4)
-            //     log.info!"%x:\t%p"(i, volatileLoad(cast(uint*)(REG_I2S_BASE!(Config.i2sIndex) + i)));
-            // log.info!"Dumping descriptor addresses";
-            // foreach (i, ref lldesc_t desc; m_dmaDescriptorRing.descriptors)
-            //     log.info!"%d:\t%p"(i, &desc);
-
-            // long drawStartTime = esp_timer_get_time;
 
             const size_t firstDescAddr = cast(size_t) m_dmaDescriptorRing.firstDescriptor;
             const size_t descCount = m_dmaDescriptorRing.descriptors.length;
@@ -215,28 +193,11 @@ struct TScherm
 
             assert(currY < Config.vt.v.res);
 
-            foreach (drawY; currY + 8 .. currY + 16)
+            foreach (drawY; currY + Config.lineBufferCount / 2 .. currY + 16)
             {
                 drawY %= Config.vt.v.res;
-                m_interruptDrawer.drawLine(
-                    m_fb.getLine(drawY),
-                    drawY,
-                    0,
-                );
+                m_interruptDrawer.drawLine(m_fb.getLine(drawY), drawY);
             }
-
-            // if (currY != 8)
-            //     totalDrawTime += esp_timer_get_time - drawStartTime;
-            // if (currY != 8)
-            //     lines += 8;
-            // if (lines % 10_000 == 0)
-            // {
-            //     log.info!"line %lld: avgIdle=%llf avgDraw=%llf"(
-            //         lines,
-            //         1.0 * totalIdleTime / lines,
-            //         1.0 * totalDrawTime / lines,
-            //     );
-            // }
         }
     }
 }

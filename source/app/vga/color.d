@@ -12,7 +12,7 @@ nothrow @nogc:
     enum Color WHITE = Color(0x7f);
 
     enum Color BLANK = BLACK;
-    enum Color CSYNC = Color(1 << 7);
+    enum Color CSYNC = Color(0x80);
     // dfmt on
 
     alias m_value this;
