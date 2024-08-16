@@ -2,17 +2,17 @@ module app.main;
 
 import app.fullscreen_log : FullscreenLog;
 import app.pong.pong : Pong;
+import app.singleton : Singleton;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
-import app.vga.framebuffer;
-import app.vga.framebuffer_interrupt.interrupt;
-import app.vga.framebuffer_interrupt.interrupt_drawer;
+import app.vga.font : Font;
+import app.vga.framebuffer_interrupt.interrupt : FrameBufferInterrupt;
+import app.vga.framebuffer_interrupt.interrupt_drawer : InterruptDrawer;
 import app.vga.video_timings;
 
+import idf.esp_common.esp_err : ESP_ERROR_CHECK;
 import idf.esp_rom.lldesc : lldesc_t;
-import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake,
-    vTaskDelay, xTaskGenericNotifyFromISR, vTaskSuspend,
-    xTaskCreatePinnedToCore, eNotifyAction;
+import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake, vTaskDelay, vTaskSuspend, xTaskCreatePinnedToCore;
 
 import idf.esp_timer : esp_timer_get_time;
 import idfd.log : Logger;
@@ -35,32 +35,22 @@ struct TScherm
 {
     enum log = Logger!"TScherm"();
 
-    // Begin of singleton pattern
-    private __gshared bool s_instanceInitialized;
-    private __gshared TScherm s_instance;
-
-    static @trusted
-    void createInstance()
-    in (!s_instanceInitialized)
-    {
-        s_instanceInitialized = true;
-        s_instance.initialize;
-    }
-
-    static @trusted nothrow @nogc pragma(inline, true)
-    ref TScherm instance()
-    in (s_instanceInitialized)
-        => s_instance;
-    // End of singleton pattern
+    // Provides `createInstance` and `instance`
+    mixin Singleton;
 
     struct Config
     {
-        static immutable(VideoTimings)* vt = &VIDEO_TIMINGS_640W_480H_MAC;
+        enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
-        enum size_t batchSize = 8;
+        enum size_t lineBufferCount = 16;
 
-        enum int whitePin = 25;
+        enum uint i2sIndex = 1;
+        enum uint bitCount = 8;
+
+        enum int[] colorPins = [14, 27, 16, 17, 25, 26];
         enum int cSyncPin = 26;
+
+        alias font = Font!();
 
         enum string wifiSsid = "Zeus WPI";
         enum string wifiPassword = "zeusisdemax";
@@ -68,34 +58,42 @@ struct TScherm
         enum ushort pongTcpServerPort = 777;
     }
 
-    private FrameBufferInterrupt!16 m_fb;
-    private FullscreenLog m_fullscreenLog;
-    private bool m_fullscreenLogActive;
-    private I2SSignalGenerator m_signalGenerator;
+    private TaskHandle_t m_loopTask;
+
+    private FrameBufferInterrupt!(Config.vt, Config.lineBufferCount) m_fb;
+    private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, true) m_i2sSignalGenerator;
     private DMADescriptorRing m_dmaDescriptorRing;
+
+    private InterruptDrawer m_interruptDrawer;
+    private FullscreenLog!(Config.vt.h.res, Config.vt.v.res, Config.font) m_fullscreenLog;
+    private bool m_fullscreenLogActive;
     private WifiClient m_wifiClient;
     private Pong m_pong;
-    private InterruptDrawer m_interruptDrawer;
-    private TaskHandle_t m_loopTask;
 
     private
     void initialize()
     {
-        logAll!("Initializing " ~ typeof(m_fb).stringof);
-        m_fb.initialize(Config.vt);
+        logAll!"Creating loop task";
+        (() @trusted {
+            // dfmt off
+            auto result = xTaskCreatePinnedToCore(
+                    pvTaskCode: &TScherm.loopTaskEntrypoint,
+                    pcName: "loop",
+                    usStackDepth: 4000,
+                    pvParameters: null,
+                    uxPriority: 10,
+                    pvCreatedTask: &m_loopTask,
+                    xCoreID: 1,
+            );
+            assert(result == pdPASS);
+            // dfmt on
+        })();
 
-        logAll!"Initializing FullscreenLog";
-        // m_fullscreenLog = FullscreenLog(m_fb);
-        // m_fullscreenLogActive = true;
+        logAll!("Initializing FrameBuffer");
+        m_fb.initialize;
 
         logAll!"Initializing I2SSignalGenerator";
-        // dfmt off
-        m_signalGenerator = I2SSignalGenerator(
-            i2sIndex: 1,
-            bitCount: 8,
-            freq: Config.vt.pixelClock,
-        );
-        // dfmt on
+        m_i2sSignalGenerator.initialize(m_loopTask);
 
         logAll!"Initializing DMADescriptorRing";
         m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
@@ -116,7 +114,7 @@ struct TScherm
 
         // dfmt off
         logAll!"Routing GPIO signals";
-        UniqueHeapArray!Signal signals = m_signalGenerator.getSignals;
+        UniqueHeapArray!Signal signals = m_i2sSignalGenerator.getSignals;
         route(from: signals.get[0], to: GPIOPin(14), invert: false); // White
         route(from: signals.get[1], to: GPIOPin(27), invert: false); // White
         route(from: signals.get[2], to: GPIOPin(16), invert: false); // White
@@ -126,25 +124,12 @@ struct TScherm
         route(from: signals.get[7], to: GPIOPin(12), invert: true ); // CSync
         // dfmt on
 
-        logAll!"Creating loop task";
-        (() @trusted {
-            // dfmt off
-            auto result = xTaskCreatePinnedToCore(
-                pvTaskCode: &TScherm.loopTaskEntrypoint,
-                pcName: "loop",
-                usStackDepth: 4000,
-                pvParameters: null,
-                uxPriority: 10,
-                pvCreatedTask: &m_loopTask,
-                xCoreID: 1,
-            );
-            // dfmt on
-            if (result != pdPASS)
-                assert(false);
-        })();
-
         logAll!"Starting VGA output";
-        m_signalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
+        m_i2sSignalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
+
+        logAll!"Initializing FullscreenLog";
+        // m_fullscreenLog = FullscreenLog(m_fb);
+        // m_fullscreenLogActive = true;
 
         // logAll!"Initializing WifiClient (async)";
         // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
@@ -184,24 +169,52 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task running";
 
-        long lines;
-        long totalIdleTime;
-        long totalDrawTime;
+        // long lines;
+        // long totalIdleTime;
+        // long totalDrawTime;
 
         while (true)
         {
-            long idleStartTime = esp_timer_get_time;
+            // long idleStartTime = esp_timer_get_time;
+
             // dfmt off
-            uint currY = ulTaskGenericNotifyTake(
+            const size_t currDescAddr = ulTaskGenericNotifyTake(
                 uxIndexToWaitOn: 0,
                 xClearCountOnExit: true,
                 xTicksToWait: 10_000,
             );
             // dfmt on
-            if (currY != 8)
-                totalIdleTime += esp_timer_get_time - idleStartTime;
 
-            long drawStartTime = esp_timer_get_time;
+            // if (currY != 8)
+            //     totalIdleTime += esp_timer_get_time - idleStartTime;
+
+            // log.info!"===";
+            // log.info!"Dumping i2s regs";
+            // for (int i = 0; i < 0x64; i += 4)
+            //     log.info!"%x:\t%p"(i, volatileLoad(cast(uint*)(REG_I2S_BASE!(Config.i2sIndex) + i)));
+            // log.info!"Dumping descriptor addresses";
+            // foreach (i, ref lldesc_t desc; m_dmaDescriptorRing.descriptors)
+            //     log.info!"%d:\t%p"(i, &desc);
+
+            // long drawStartTime = esp_timer_get_time;
+
+            const size_t firstDescAddr = cast(size_t) m_dmaDescriptorRing.firstDescriptor;
+            const size_t descCount = m_dmaDescriptorRing.descriptors.length;
+
+            assert(currDescAddr >= firstDescAddr);
+            assert((currDescAddr - firstDescAddr) % lldesc_t.sizeof == 0);
+            const size_t currDescIndex = (currDescAddr - firstDescAddr) / lldesc_t.sizeof;
+            const size_t nextDescIndex = (currDescIndex + 1) % descCount;
+
+            const uint currY = () {
+                if (Config.vt.v.resStart <= nextDescIndex)
+                    return (nextDescIndex - Config.vt.v.resStart) / 2;
+                else
+                    return 0;
+            }();
+
+            assert(currY < Config.vt.v.res);
+
             foreach (drawY; currY + 8 .. currY + 16)
             {
                 drawY %= Config.vt.v.res;
@@ -211,43 +224,20 @@ struct TScherm
                     0,
                 );
             }
-            if (currY != 8)
-                totalDrawTime += esp_timer_get_time - drawStartTime;
 
-            if (currY != 8)
-                lines += 8;
-
-            if (lines % 10_000 == 0)
-            {
-                log.info!"line %lld: avgIdle=%llf avgDraw=%llf"(
-                    lines,
-                    1.0 * totalIdleTime / lines,
-                    1.0 * totalDrawTime / lines,
-                );
-            }
+            // if (currY != 8)
+            //     totalDrawTime += esp_timer_get_time - drawStartTime;
+            // if (currY != 8)
+            //     lines += 8;
+            // if (lines % 10_000 == 0)
+            // {
+            //     log.info!"line %lld: avgIdle=%llf avgDraw=%llf"(
+            //         lines,
+            //         1.0 * totalIdleTime / lines,
+            //         1.0 * totalDrawTime / lines,
+            //     );
+            // }
         }
-    }
-
-    @section(".iram1")
-    static @trusted nothrow @nogc extern (C)
-    void onBufferCompleted()
-    {
-        __gshared uint currY;
-
-        currY += 8;
-        if (currY >= 480)
-            currY = 0;
-
-        // dfmt off
-        xTaskGenericNotifyFromISR(
-            xTaskToNotify: TScherm.s_instance.m_loopTask,
-            uxIndexToNotify: 0,
-            ulValue: currY,
-            eAction: eNotifyAction.eSetValueWithOverwrite,
-            pulPreviousNotificationValue: null,
-            pxHigherPriorityTaskWoken: null,
-        );
-        // dfmt on
     }
 }
 

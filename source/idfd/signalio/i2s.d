@@ -3,39 +3,42 @@ module idfd.signalio.i2s;
 import idfd.log : Logger;
 import idfd.signalio.signal : Signal;
 
-import idf.esp_common.esp_err : ESP_ERROR_CHECK;
 import idf.driver.periph_ctrl : periph_module_enable;
-import idf.esp_hw_support.esp_intr_alloc;
+import idf.esp_common.esp_err : ESP_ERROR_CHECK;
+import idf.esp_hw_support.esp_intr_alloc : esp_intr_alloc, esp_intr_enable,
+    ESP_INTR_FLAG_INTRDISABLED, ESP_INTR_FLAG_IRAM, ESP_INTR_FLAG_LEVEL3, intr_handle_t;
 import idf.esp_rom.lldesc : lldesc_t;
-import idf.soc.gpio_sig_map : I2S0O_DATA_OUT0_IDX, I2S1O_DATA_OUT0_IDX;
+import idf.freertos : eNotifyAction, TaskHandle_t, xTaskGenericNotifyFromISR;
 import idf.soc.i2s_reg : I2S_INT_CLR_REG, I2S_INT_RAW_REG;
-import idf.soc.i2s_struct : I2S0, I2S1, i2s_dev_t;
-import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE, periph_module_t;
+import idf.soc.i2s_struct : i2s_dev_t;
+import idf.soc.periph_defs : periph_module_t;
 import idf.soc.rtc : rtc_clk_apll_enable;
-import idf.soc.soc : ETS_I2S0_INTR_SOURCE, ETS_I2S1_INTR_SOURCE;
 
 import ldc.attributes : section;
 
+import ministd.algorithm : among;
 import ministd.typecons : UniqueHeapArray;
 import ministd.volatile : VolatileRef;
 
 @safe:
 
-__gshared i2s_dev_t*[] i2sDevices = [&I2S0, &I2S1];
-
-struct I2SSignalGenerator
+struct I2SSignalGenerator(uint ct_i2sIndex, uint ct_bitCount, long ct_freq, bool ct_useInterrupt)
+        if ((ct_i2sIndex == 0 && ct_bitCount == 8) || (ct_i2sIndex == 1 && ct_bitCount.among(8, 16)))
 {
     private enum log = Logger!"I2SSignalGenerator"();
 
-    alias OnBufferCompleted = extern (C) void function() nothrow @nogc;
-
-    private uint m_i2sIndex;
-    private uint m_bitCount;
-
     private VolatileRef!i2s_dev_t m_i2sDev;
-    private intr_handle_t m_interruptHandle;
+
+    static if (ct_useInterrupt)
+    {
+        private intr_handle_t m_interruptHandle;
+        private TaskHandle_t m_taskToNotifyOnEofInterrupt;
+    }
 
 scope:
+    @disable this();
+    @disable this(ref typeof(this));
+
     /** 
      * Params:
      *   bitCount = Number of bits in one sample.
@@ -43,35 +46,47 @@ scope:
      *   freq = Bit speed/frequency on each pin.
      *   i2sIndex = Which of the 2 I2S devices to use: `0` or `1`.
      */
-    this(uint i2sIndex, uint bitCount, long freq)
-    in (bitCount == 8 || bitCount == 16)
-    in (i2sIndex == 0 || i2sIndex == 1)
+    static if (!ct_useInterrupt)
     {
-        m_i2sIndex = i2sIndex;
-        m_bitCount = bitCount;
+        void initialize()
+        {
+            initializeImpl;
+        }
+    }
+    else
+    {
+        void initialize(TaskHandle_t taskToNotifyOnEofInterrupt)
+        {
+            m_taskToNotifyOnEofInterrupt = taskToNotifyOnEofInterrupt;
+            initializeImpl;
+        }
+    }
 
-        m_i2sDev = VolatileRef!i2s_dev_t((() @trusted => i2sDevices[m_i2sIndex])());
+    private pragma(inline, true)
+    void initializeImpl()
+    {
+        m_i2sDev = VolatileRef!i2s_dev_t(i2sDevice!ct_i2sIndex);
 
         enable;
         reset;
         setupParallelOutput;
-        setupClock(freq * 2 * (m_bitCount / 8));
+        setupClock;
         prepareForTransmitting;
-        allocateInterrupt;
+
+        static if (ct_useInterrupt)
+            allocateInterrupt;
+
         reset;
     }
 
     private
     void enable()
     {
-        static immutable periph_module_t[] modules = [
-            PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE
-        ];
-        const periph_module_t m = modules[m_i2sIndex];
+        enum m = i2sPeripheralModule!(ct_i2sIndex);
         (() @trusted => periph_module_enable(m))();
     }
 
-    private
+    private nothrow @nogc
     void reset()
     {
         import idf.soc.i2s_reg;
@@ -90,7 +105,7 @@ scope:
         }
     }
 
-    private
+    private nothrow @nogc
     void setupParallelOutput()
     {
         // Clear serial mode flags
@@ -107,10 +122,12 @@ scope:
     }
 
     private
-    void setupClock(long freq)
+    void setupClock()
     {
+        long freq = ct_freq * 2 * (ct_bitCount / 8);
+
         m_i2sDev.sample_rate_conf.val = 0;
-        m_i2sDev.sample_rate_conf.tx_bits_mod = m_bitCount;
+        m_i2sDev.sample_rate_conf.tx_bits_mod = ct_bitCount;
         int sdm, sdmn;
         int odir = -1;
         do
@@ -137,7 +154,7 @@ scope:
         }();
         // dfmt on
 
-        (() @trusted {
+        {
             int clockN = 2, clockA = 1, clockB = 0, clockDiv = 1;
 
             m_i2sDev.clkm_conf.val = 0;
@@ -146,28 +163,10 @@ scope:
             m_i2sDev.clkm_conf.clkm_div_a = clockA;
             m_i2sDev.clkm_conf.clkm_div_b = clockB;
             m_i2sDev.sample_rate_conf.tx_bck_div_num = clockDiv;
-        })();
+        }
     }
 
-    private @trusted
-    void allocateInterrupt()
-    {
-        log.info!"allocateInterrupt";
-        static immutable int[] interruptSource = [
-            ETS_I2S0_INTR_SOURCE, ETS_I2S1_INTR_SOURCE
-        ];
-        log.info!"m_interruptHandle: %p"(m_interruptHandle);
-        ESP_ERROR_CHECK(esp_intr_alloc(
-                interruptSource[m_i2sIndex],
-                ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM,
-                &handleInterrupt,
-                &this,
-                &m_interruptHandle,
-        ));
-        log.info!"m_interruptHandle: %p"(m_interruptHandle);
-    }
-
-    private
+    private nothrow @nogc
     void prepareForTransmitting()
     {
         m_i2sDev.fifo_conf.val = 0;
@@ -187,11 +186,25 @@ scope:
         m_i2sDev.timing.val = 0;
     }
 
+    static if (ct_useInterrupt)
+    {
+        private @trusted nothrow @nogc
+        void allocateInterrupt()
+        {
+            ESP_ERROR_CHECK(esp_intr_alloc(
+                    i2sInterruptSource!ct_i2sIndex,
+                    ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LEVEL3 | ESP_INTR_FLAG_IRAM,
+                    &handleInterrupt,
+                    &this,
+                    &m_interruptHandle,
+            ));
+        }
+    }
+
     /** 
      * Params:
      *   firstDescriptor = Pointer to a lldesc_t of which the next ptr can be followed infinitely.
      */
-    @trusted
     void startTransmitting(return scope lldesc_t* firstDescriptor)
     {
         m_i2sDev.lc_conf.val = 0;
@@ -204,37 +217,23 @@ scope:
         m_i2sDev.int_clr.val = m_i2sDev.int_raw.val;
         m_i2sDev.int_ena.val = 0;
 
-        if (m_interruptHandle)
+        static if (ct_useInterrupt)
         {
             m_i2sDev.int_ena.out_eof = 1;
-            log.info!"calling esp_intr_enable";
             ESP_ERROR_CHECK(esp_intr_enable(m_interruptHandle));
         }
 
         m_i2sDev.conf.tx_start = 1;
     }
 
+    nothrow @nogc
     UniqueHeapArray!Signal getSignals() const
     {
-        auto signals = UniqueHeapArray!Signal.create(m_bitCount);
+        auto signals = UniqueHeapArray!Signal.create(ct_bitCount);
 
+        enum uint firstSignalIndex = i2sFirstSignalIndex!(ct_i2sIndex, ct_bitCount);
         foreach (i, ref signal; signals)
-        {
-            final switch (m_i2sIndex)
-            {
-            case 0:
-                immutable uint baseIndex = I2S0O_DATA_OUT0_IDX;
-                signal = Signal(baseIndex + 24 - m_bitCount + cast(uint) i);
-                break;
-            case 1:
-                immutable uint baseIndex = I2S1O_DATA_OUT0_IDX;
-                if (m_bitCount == 16)
-                    signal = Signal(baseIndex + 8 + cast(uint) i);
-                else
-                    signal = Signal(baseIndex + cast(uint) i);
-                break;
-            }
-        }
+            signal = Signal(firstSignalIndex + cast(uint) i);
 
         return signals;
     }
@@ -244,25 +243,87 @@ scope:
     void handleInterrupt(void* arg)
     {
         import core.volatile : volatileLoad, volatileStore;
-        import idf.soc.i2s_reg : I2S_INT_RAW_REG, I2S_INT_CLR_REG;
+        import idf.soc.i2s_reg : I2S_INT_CLR_REG, I2S_INT_RAW_REG, I2S_OUT_EOF_DES_ADDR_REG, I2S_OUT_EOF_INT_RAW;
+
+        enum uint* rawReg = cast(uint*)(I2S_INT_RAW_REG!ct_i2sIndex);
+        enum uint* clrReg = cast(uint*)(I2S_INT_CLR_REG!ct_i2sIndex);
+
+        uint rawFlags = volatileLoad(rawReg);
+        volatileStore(clrReg, (rawFlags & 0xffffffc0) | 0x3f); // Clear interrupt flags
 
         I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
 
-        uint i2sIndex = instance.m_i2sIndex;
-
-        uint* rawReg = cast(uint*)(i2sIndex == 0 ? I2S_INT_RAW_REG!0 : I2S_INT_RAW_REG!1);
-        uint* clrReg = cast(uint*)(i2sIndex == 0 ? I2S_INT_CLR_REG!0 : I2S_INT_CLR_REG!1);
-
-        uint rawFlags = volatileLoad(rawReg);
-
-        // Clear interrupt flags
-        volatileStore(clrReg, (rawFlags & 0xffffffc0) | 0x3f);
-
-        if (rawFlags & (1 << 12))
+        if (rawFlags & I2S_OUT_EOF_INT_RAW)
         {
-            import app.main : TScherm;
+            uint currDescAddr = volatileLoad(cast(uint*) I2S_OUT_EOF_DES_ADDR_REG!ct_i2sIndex);
 
-            TScherm.onBufferCompleted;
+            // dfmt off
+            xTaskGenericNotifyFromISR(
+                xTaskToNotify: instance.m_taskToNotifyOnEofInterrupt,
+                uxIndexToNotify: 0,
+                ulValue: currDescAddr,
+                eAction: eNotifyAction.eSetValueWithOverwrite,
+                pulPreviousNotificationValue: null,
+                pxHigherPriorityTaskWoken: null,
+            );
+            // dfmt on
         }
     }
+}
+
+template i2sDevice(uint i2sIndex)
+{
+    import idf.soc.i2s_struct : I2S0, I2S1;
+
+    static if (i2sIndex == 0)
+        enum i2s_dev_t* i2sDevice = &I2S0;
+    else static if (i2sIndex == 1)
+        enum i2s_dev_t* i2sDevice = &I2S1;
+    else
+        static assert(false);
+}
+
+template i2sPeripheralModule(uint i2sIndex)
+{
+    import idf.soc.periph_defs : PERIPH_I2S0_MODULE, PERIPH_I2S1_MODULE;
+
+    static if (i2sIndex == 0)
+        enum periph_module_t i2sPeripheralModule = PERIPH_I2S0_MODULE;
+    else static if (i2sIndex == 1)
+        enum periph_module_t i2sPeripheralModule = PERIPH_I2S1_MODULE;
+    else
+        static assert(false);
+}
+
+template i2sInterruptSource(uint i2sIndex)
+{
+    import idf.soc.soc : ETS_I2S0_INTR_SOURCE, ETS_I2S1_INTR_SOURCE;
+
+    static if (i2sIndex == 0)
+        enum int i2sInterruptSource = ETS_I2S0_INTR_SOURCE;
+    else static if (i2sIndex == 1)
+        enum int i2sInterruptSource = ETS_I2S1_INTR_SOURCE;
+    else
+        static assert(false);
+}
+
+template i2sFirstSignalIndex(uint i2sIndex, uint bitCount)
+{
+    import idf.soc.gpio_sig_map : I2S0O_DATA_OUT0_IDX, I2S1O_DATA_OUT0_IDX;
+
+    static if (i2sIndex == 0)
+    {
+        enum uint i2sFirstSignalIndex = I2S0O_DATA_OUT0_IDX + 16;
+    }
+    else static if (i2sIndex == 1)
+    {
+        static if (bitCount == 8)
+            enum uint i2sFirstSignalIndex = I2S1O_DATA_OUT0_IDX;
+        else static if (m_bitCount == 16)
+            enum uint i2sFirstSignalIndex = I2S1O_DATA_OUT0_IDX + 8;
+        else
+            static assert(false);
+    }
+    else
+        static assert(false);
 }

@@ -4,7 +4,7 @@ import ministd.traits : isSomeChar, Unqual;
 
 @safe nothrow @nogc:
 
-struct Font(string ignore)
+struct Font()
 {
 pure nothrow @nogc:
     enum imagePath = "fonts/mc_16x32.bin";
