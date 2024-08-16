@@ -1,41 +1,43 @@
 module app.vga.font;
 
+import app.vga.color : Color;
+
+import ldc.attributes : section;
+
 import ministd.traits : isSomeChar, Unqual;
 
 @safe nothrow @nogc:
 
 struct Font()
 {
-pure nothrow @nogc:
+nothrow @nogc:
     enum imagePath = "fonts/mc_16x32.bin";
     enum uint glyphCount = 95;
     enum uint glyphWidth = 16;
     enum uint glyphHeight = 32;
     enum uint imageLength = glyphWidth * glyphHeight * glyphCount;
-    alias Image = ubyte[glyphWidth * glyphCount][glyphHeight];
-    alias Glyph = ubyte[glyphWidth][glyphHeight];
-    enum Image image = cast(Image) import(imagePath)[0 .. imageLength];
+
+    @section(".iram1")
+    enum immutable(Color)[] image = cast(immutable(Color)[]) import(imagePath);
+    static assert(image.length == imageLength);
 
 const scope:
-    Glyph opIndex(C)(C c) //
+    immutable(Color)[] getGlyphLine(C)(C c, uint line) //
     if (isSomeChar!C)
     {
         if (c < ' ' || '~' < c)
-            return this['?'];
+            return getGlyphLine('?', line);
         size_t index = c - ' ';
-        return this[index];
+        return getGlyphLine(index, line);
     }
 
-    Glyph opIndex(I)(I i) //
+    immutable(Color)[] getGlyphLine(I)(I i, uint line) //
     if (!isSomeChar!I)
     in (i < glyphCount)
     {
-        const size_t imageXBegin = i * glyphWidth;
-        const size_t imageXEnd = imageXBegin + glyphWidth;
+        const size_t begin = line * glyphWidth * glyphCount + i * glyphWidth;
+        const size_t end = begin + glyphWidth;
 
-        Glyph ret;
-        foreach (const y; 0 .. glyphHeight)
-            ret[y] = image[y][imageXBegin .. imageXEnd];
-        return ret;
+        return image[begin .. end];
     }
 }

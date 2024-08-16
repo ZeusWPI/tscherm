@@ -1,12 +1,13 @@
 module app.vga.framebuffer_interrupt.interrupt_drawer;
 
 import app.vga.color : Color;
+import app.vga.video_timings : VideoTimings;
 
 import ministd.algorithm : swap;
 
 @safe nothrow @nogc:
 
-struct InterruptDrawer
+struct InterruptDrawer(VideoTimings ct_vt)
 {
     bool reverse;
 
@@ -14,6 +15,7 @@ struct InterruptDrawer
     {
     }
 
+    @trusted
     void drawLine(Color[] buf, uint y)
     {
         // uint i = (y + frame / 30) % 4;
@@ -30,7 +32,6 @@ struct InterruptDrawer
         // (1629) TScherm: line 40000: avgIdle=28.936075 avgDraw=2.201550
         buf[0 .. y] = Color.WHITE;
         buf[y .. $] = Color.BLACK;
-
         // Little endian to ... medium endian?
         uint wordStart = y & ~3;
         swap(buf[wordStart], buf[wordStart + 3]);
