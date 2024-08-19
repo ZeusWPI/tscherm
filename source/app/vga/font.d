@@ -8,6 +8,24 @@ import ministd.traits : isSomeChar, Unqual;
 
 @safe nothrow @nogc:
 
+private enum immutable(Color[]) readImage(string importPath) = () {
+    if (__ctfe)
+    {
+        enum string str = import(importPath);
+        Color[] image = new Color[str.length];
+
+        static assert(str.length % 4 == 0);
+        foreach (size_t i; 0 .. str.length)
+            image[i ^ 2] = cast(Color) str[i];
+
+        return image;
+    }
+    else
+    {
+        return [];
+    }
+}();
+
 struct Font()
 {
 nothrow @nogc:
@@ -18,10 +36,10 @@ nothrow @nogc:
     enum uint imageLength = glyphWidth * glyphHeight * glyphCount;
 
     @section(".iram1")
-    enum immutable(Color)[] image = cast(immutable(Color)[]) import(imagePath);
+    static immutable(Color[]) image = readImage!imagePath;
     static assert(image.length == imageLength);
 
-const scope:
+const scope pragma(inline, true):
     immutable(Color)[] getGlyphLine(C)(C c, uint y) //
     if (isSomeChar!C)
     {

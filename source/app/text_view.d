@@ -37,12 +37,54 @@ scope:
         m_text = typeof(m_text).create(ct_maxRows);
     }
 
+    void write(const(char)[] message = "")
+    {
+        for (size_t i; i < message.length; i++)
+        {
+            if (message[i] == '\n')
+            {
+                writeRaw(message[0 .. i]);
+                message = message[i + 1 .. $];
+                i = 0;
+                m_currRow++;
+            }
+        }
+        writeRaw(message);
+    }
+
     void writeln(const(char)[] message = "")
     {
-        if (message.length >= ct_maxCharsPerRow)
-            message = message[0 .. ct_maxCharsPerRow];
-        m_text[m_currRow].put(message);
-        m_currRow++;
+        write(message);
+        write("\n");
+    }
+
+    private
+    void writeRaw(const(char)[] message)
+    {
+        if (!message.length)
+            return;
+        while (true)
+        {
+            if (m_currRow == ct_maxRows)
+            {
+                // Todo: autoscroll
+                return;
+            }
+            size_t currLength = m_text[m_currRow].length;
+            size_t combinedLength = currLength + message.length;
+            if (combinedLength > ct_maxCharsPerRow)
+            {
+                ptrdiff_t remainingSpace = ct_maxCharsPerRow - currLength;
+                m_text[m_currRow].put(message[0 .. remainingSpace]);
+                message = message[remainingSpace .. $];
+                m_currRow++;
+            }
+            else
+            {
+                m_text[m_currRow].put(message);
+                return;
+            }
+        }
     }
 
     void clear()
@@ -76,11 +118,11 @@ scope:
             }
             buf[xEnd .. ct_width] = Color.BLACK;
 
-            () @trusted {
-                ushort[] usBuf = cast(ushort[]) buf;
-                for (size_t i = 0; i < ct_width / 2; i += 2)
-                    swap(usBuf[i], usBuf[i + 1]);
-            }();
+            // () @trusted {
+            //     ushort[] usBuf = cast(ushort[]) buf;
+            //     for (size_t i = 0; i < ct_width / 2; i += 2)
+            //         swap(usBuf[i], usBuf[i + 1]);
+            // }();
         }
     }
 }

@@ -43,7 +43,7 @@ struct TScherm
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
         enum size_t lineBufferCount = 16;
-        enum size_t drawBatchSize = 8;
+        enum size_t drawBatchSize = 4;
 
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
@@ -124,42 +124,31 @@ struct TScherm
         log.info!"Starting VGA output";
         m_i2sSignalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-        // log.info!"Initializing a TextView";
-        // m_textView.initialize;
-        // m_textViewInitialized = true;
+        log.info!"Initializing a TextView";
+        m_textView.initialize;
+        m_textViewInitialized = true;
 
-        // m_textView.writeln("Hello Zeus WPI =))))))))");
-        // vTaskDelay(1000);
-        // m_textView.writeln;
-        // m_textView.writeln("More lines");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more more more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more more more more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more more more more more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more more more more more more lines!");
-        // vTaskDelay(1000);
-        // m_textView.writeln("Even more more more more more more more more lines!");
-        // vTaskDelay(1000);
+        m_textView.writeln("Hello Zeus WPI =))))))))");
+        vTaskDelay(1000);
+        m_textView.writeln;
+        m_textView.writeln("More lines");
+        vTaskDelay(1000);
+        m_textView.writeln("Even more lines!");
+        vTaskDelay(1000);
 
-        // m_textView.writeln;
-        // m_textView.writeln(
-        //     `A really really long line with wrappin`
-        //     // ~ ` abcdefghijklmnopqrtstuvxyz`
-        //     // ~ ` ABCDEFGHIJKLMNOPQRTSTUVXYZ`
-        //     // ~ ` 0123456789`
-        //     // ~ ` !"#$%&'()*+,-./`
-        //     // ~ ` :;<=>?@ [\]^_ {|}~`
-        //     // ~ " `"
-        // );
+        m_textView.writeln(`A really really really really long line with wrapping and much more text on the next few lines.........`);
+        vTaskDelay(1000);
+
+        m_textView.writeln;
+        m_textView.writeln(
+            `A really really long line with wrapping`
+            ~ ` abcdefghijklmnopqrtstuvxyz`
+            ~ ` ABCDEFGHIJKLMNOPQRTSTUVXYZ`
+            ~ ` 0123456789`
+            ~ ` !"#$%&'()*+,-./`
+            ~ ` :;<=>?@ [\]^_ {|}~`
+            ~ " `"
+        );
 
         // log.info!"Initializing WifiClient (async)";
         // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
@@ -218,15 +207,15 @@ struct TScherm
                 drawY %= Config.vt.v.res;
                 Color[] line = m_fb.getLine(drawY);
 
-                m_interruptDrawer.drawLine(line, drawY);
-                // if (m_textViewInitialized)
-                // {
-                //     m_textView.drawLine(line, drawY);
-                // }
-                // else
-                // {
-                //     line[] = Color.BLACK;
-                // }
+                // m_interruptDrawer.drawLine(line, drawY);
+                if (m_textViewInitialized)
+                {
+                   m_textView.drawLine(line, drawY);
+                }
+                else
+                {
+                    line[] = Color.BLACK;
+                }
             }
         }
     }
