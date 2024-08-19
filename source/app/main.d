@@ -1,6 +1,6 @@
 module app.main;
 
-import app.fullscreen_log : FullscreenLog;
+import app.text_view : TextView;
 import app.pong.pong : Pong;
 import app.singleton : Singleton;
 import app.vga.color : Color;
@@ -48,8 +48,8 @@ struct TScherm
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
 
-        enum int[] colorPins = [14, 27, 16, 17, 25, 26];
-        enum int cSyncPin = 12;
+        enum int[] colorPins = [26, 25, 17, 16, 27, 14, 12];
+        enum int cSyncPin = 13;
 
         alias font = Font!();
 
@@ -68,16 +68,16 @@ struct TScherm
     private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, true) m_i2sSignalGenerator;
     private DMADescriptorRing m_dmaDescriptorRing;
 
-    // private InterruptDrawer!(Config.vt) m_interruptDrawer;
-    private FullscreenLog!(Config.vt.h.res, Config.vt.v.res, Config.font) m_fullscreenLog;
-    // private bool m_fullscreenLogActive;
+    private InterruptDrawer!(Config.vt) m_interruptDrawer;
+    private TextView!(Config.vt.h.res, Config.vt.v.res, Config.font) m_textView;
+    private bool m_textViewInitialized;
     // private WifiClient m_wifiClient;
     // private Pong m_pong;
 
     private
     void initialize()
     {
-        logAll!"Creating loop task";
+        log.info!"Creating loop task";
         (() @trusted {
             // dfmt off
             auto result = xTaskCreatePinnedToCore(
@@ -93,17 +93,17 @@ struct TScherm
             // dfmt on
         })();
 
-        logAll!("Initializing FrameBuffer");
+        log.info!("Initializing FrameBuffer");
         m_fb.initialize;
 
-        logAll!"Initializing DMADescriptorRing";
+        log.info!"Initializing DMADescriptorRing";
         m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
         m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.allBuffers)());
 
-        logAll!"Initializing I2SSignalGenerator";
+        log.info!"Initializing I2SSignalGenerator";
         m_i2sSignalGenerator.initialize(m_loopTask);
 
-        logAll!"Setting descriptor eof flags";
+        log.info!"Setting descriptor eof flags";
         // dfmt off
         for (
             size_t i = Config.vt.v.resStart + Config.drawBatchSize * 2 - 1;
@@ -114,46 +114,66 @@ struct TScherm
         // dfmt on
 
         // dfmt off
-        logAll!"Routing GPIO signals";
+        log.info!"Routing GPIO signals";
         UniqueHeapArray!Signal signals = m_i2sSignalGenerator.getSignals;
         static foreach(i, int pin; Config.colorPins)
             route(from: signals.get[i], to: GPIOPin(pin), invert: false);
         route(from: signals.get[$ - 1], to: GPIOPin(Config.cSyncPin), invert: true);
         // dfmt on
 
-        logAll!"Starting VGA output";
+        log.info!"Starting VGA output";
         m_i2sSignalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
-        // logAll!"Initializing InterruptDrawer";
-        // m_interruptDrawer.initialize;
+        // log.info!"Initializing a TextView";
+        // m_textView.initialize;
+        // m_textViewInitialized = true;
 
-        logAll!"Initializing FullscreenLog";
-        m_fullscreenLog.initialize;
-        // m_fullscreenLogActive = true;
+        // m_textView.writeln("Hello Zeus WPI =))))))))");
+        // vTaskDelay(1000);
+        // m_textView.writeln;
+        // m_textView.writeln("More lines");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more more more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more more more more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more more more more more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more more more more more more lines!");
+        // vTaskDelay(1000);
+        // m_textView.writeln("Even more more more more more more more more lines!");
+        // vTaskDelay(1000);
 
-        // logAll!"Initializing WifiClient (async)";
+        // m_textView.writeln;
+        // m_textView.writeln(
+        //     `A really really long line with wrappin`
+        //     // ~ ` abcdefghijklmnopqrtstuvxyz`
+        //     // ~ ` ABCDEFGHIJKLMNOPQRTSTUVXYZ`
+        //     // ~ ` 0123456789`
+        //     // ~ ` !"#$%&'()*+,-./`
+        //     // ~ ` :;<=>?@ [\]^_ {|}~`
+        //     // ~ " `"
+        // );
+
+        // log.info!"Initializing WifiClient (async)";
         // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
         // m_wifiClient.startAsync;
 
-        // logAll!("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        // log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
         // m_wifiClient.waitForConnection;
 
-        // fullscreenLog.clear;
-        // logAll!("Connected to " ~ Config.wifiSsid ~ "!");
+        // log.info!("Connected to " ~ Config.wifiSsid ~ "!");
         // (() @trusted => vTaskDelay(100))();
 
-        // logAll!"Starting Pong";
+        // log.info!"Starting Pong";
         // (() @trusted => vTaskDelay(100))();
-        // m_fullscreenLogActive = false;
         // m_pong = Pong(m_fb);
-    }
-
-    private
-    void logAll(string fmt, Args...)(Args args)
-    {
-        log.info!fmt(args);
-        // if (m_fullscreenLogActive)
-        //     m_fullscreenLog.writeln(fmt);
     }
 
     private static @trusted extern (C)
@@ -196,7 +216,17 @@ struct TScherm
             foreach (drawY; currY + Config.lineBufferCount / 2 .. currY + 16)
             {
                 drawY %= Config.vt.v.res;
-                m_fullscreenLog.drawLine(m_fb.getLine(drawY), drawY);
+                Color[] line = m_fb.getLine(drawY);
+
+                m_interruptDrawer.drawLine(line, drawY);
+                // if (m_textViewInitialized)
+                // {
+                //     m_textView.drawLine(line, drawY);
+                // }
+                // else
+                // {
+                //     line[] = Color.BLACK;
+                // }
             }
         }
     }

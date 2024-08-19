@@ -171,9 +171,9 @@ scope:
     {
         m_i2sDev.fifo_conf.val = 0;
         m_i2sDev.fifo_conf.tx_fifo_mod_force_en = 1;
-        m_i2sDev.fifo_conf.tx_fifo_mod = 1; //byte packing 0A0B_0B0C = 0, 0A0B_0C0D = 1, 0A00_0B00 = 3,
-        m_i2sDev.fifo_conf.tx_data_num = 32; //fifo length
-        m_i2sDev.fifo_conf.dscr_en = 1; //fifo will use dma
+        m_i2sDev.fifo_conf.tx_fifo_mod = 1; // byte packing 0A0B_0B0C = 0, 0A0B_0C0D = 1, 0A00_0B00 = 3,
+        m_i2sDev.fifo_conf.tx_data_num = 32; // fifo length
+        m_i2sDev.fifo_conf.dscr_en = 1; // fifo will use dma
 
         m_i2sDev.conf1.val = 0;
         m_i2sDev.conf1.tx_stop_en = 0;
@@ -182,7 +182,8 @@ scope:
         m_i2sDev.conf_chan.val = 0;
         m_i2sDev.conf_chan.tx_chan_mod = 1;
 
-        m_i2sDev.conf.tx_right_first = 1; // high or low (stereo word order)
+        m_i2sDev.conf.tx_right_first = 1; // stereo word order
+
         m_i2sDev.timing.val = 0;
     }
 

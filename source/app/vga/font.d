@@ -22,20 +22,20 @@ nothrow @nogc:
     static assert(image.length == imageLength);
 
 const scope:
-    immutable(Color)[] getGlyphLine(C)(C c, uint line) //
+    immutable(Color)[] getGlyphLine(C)(C c, uint y) //
     if (isSomeChar!C)
     {
         if (c < ' ' || '~' < c)
-            return getGlyphLine('?', line);
+            return getGlyphLine('?', y);
         size_t index = c - ' ';
-        return getGlyphLine(index, line);
+        return getGlyphLine(index, y);
     }
 
-    immutable(Color)[] getGlyphLine(I)(I i, uint line) //
+    immutable(Color)[] getGlyphLine(I)(I i, uint y) //
     if (!isSomeChar!I)
     in (i < glyphCount)
     {
-        const size_t begin = line * glyphWidth * glyphCount + i * glyphWidth;
+        const size_t begin = y * glyphWidth * glyphCount + i * glyphWidth;
         const size_t end = begin + glyphWidth;
 
         return image[begin .. end];
