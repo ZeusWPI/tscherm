@@ -50,13 +50,13 @@ struct TScherm
 
         enum int[] colorPins = [26, 25, 17, 16, 27, 14, 12];
         enum int cSyncPin = 13;
+        enum int pinUp = 18;
+        enum int pinDown = 19;
 
         alias FontT = FontMC16x32;
 
-        // enum string wifiSsid = "Zeus WPI";
-        // enum string wifiPassword = "zeusisdemax";
-
-        // enum ushort pongTcpServerPort = 777;
+        enum string wifiSsid = "Zeus WPI";
+        enum string wifiPassword = "zeusisdemax";
 
         static assert(lineBufferCount % drawBatchSize == 0);
         static assert(drawBatchSize <= lineBufferCount / 2);
@@ -69,10 +69,13 @@ struct TScherm
     private DMADescriptorRing m_dmaDescriptorRing;
 
     private Config.FontT m_font;
-    private TextView!(Config.vt.h.res, Config.vt.v.res, Config.FontT) m_textView;
-    private bool m_textViewInitialized;
-    // private WifiClient m_wifiClient;
-    // private Pong m_pong;
+    private TextView!(Config.vt.h.res, Config.vt.v.res, Config.FontT) m_fullScreenLog;
+    private bool m_fullScreenLogInitialized;
+
+    private WifiClient m_wifiClient;
+
+    private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown) m_pong;
+    private bool m_pongInitialized;
 
     @disable this();
     @disable this(ref typeof(this));
@@ -130,42 +133,27 @@ struct TScherm
         log.info!"Initializing Font";
         m_font.initialize;
 
-        log.info!"Initializing a TextView";
-        (() @trusted => m_textView.initialize(&m_font))();
-        m_textViewInitialized = true;
+        log.info!"Initializing a TextView as fullscreen log";
+        (() @trusted => m_fullScreenLog.initialize(&m_font))();
+        m_fullScreenLogInitialized = true;
 
-        m_textView.writeln("Hello Zeus WPI =))))))))");
-        vTaskDelay(1000);
-        m_textView.writeln;
-        m_textView.writeln("More lines");
-        vTaskDelay(1000);
-        m_textView.writeln("Even more lines!");
-        vTaskDelay(1000);
+        log.info!"Initializing WifiClient (async)";
+        m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
+        m_wifiClient.startAsync;
 
-        m_textView.writeln(
-            `A really really really really long line with wrapping`
-                ~ ` and much more text on the next few lines.........`
-                ~ ` abcdefghijklmnopqrtstuvxyz`
-                ~ ` ABCDEFGHIJKLMNOPQRTSTUVXYZ`
-                ~ ` 0123456789`
-                ~ ` !"#$%&'()*+,-./`
-                ~ ` :;<=>?@ [\]^_ {|}~`
-                ~ " `"
-        );
+        log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        m_wifiClient.waitForConnection;
 
-        // log.info!"Initializing WifiClient (async)";
-        // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
-        // m_wifiClient.startAsync;
+        log.info!("Connected to " ~ Config.wifiSsid ~ "!");
+        m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
+        vTaskDelay(500);
 
-        // log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        // m_wifiClient.waitForConnection;
-
-        // log.info!("Connected to " ~ Config.wifiSsid ~ "!");
-        // (() @trusted => vTaskDelay(100))();
-
-        // log.info!"Starting Pong";
-        // (() @trusted => vTaskDelay(100))();
-        // m_pong = Pong(m_fb);
+        log.info!"Starting Pong";
+        m_fullScreenLog.writeln("Starting Pong");
+        vTaskDelay(500);
+        m_pong.initialize;
+        m_pongInitialized = true;
     }
 
     private static @trusted extern (C)
@@ -210,9 +198,14 @@ struct TScherm
                 drawY %= Config.vt.v.res;
                 Color[] line = m_fb.getLine(drawY);
 
-                if (m_textViewInitialized)
+                if (m_pongInitialized)
                 {
-                    m_textView.drawLine(line, drawY);
+                    m_pong.tick;
+                    m_pong.drawLine(line, drawY);
+                }
+                else if (m_fullScreenLogInitialized)
+                {
+                    m_fullScreenLog.drawLine(line, drawY);
                 }
                 else
                 {

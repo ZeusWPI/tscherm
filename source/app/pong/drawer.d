@@ -10,68 +10,66 @@ import ministd.math : clamp;
 
 @safe nothrow @nogc:
 
-// Used with 7-color grayscale
-struct PongDrawer
+struct PongDrawer(uint ct_width, uint ct_height)
 {
 nothrow @nogc:
     private enum log = Logger!"PongDrawer"();
 
-    private FrameBuffer m_fb;
-    private int m_barWidth;
-    private int m_barHeight;
-    private int m_barYMin;
-    private int m_barYMax;
-    private int m_barY;
+    private enum Color ct_backgroundColor = Color.BLACK;
+    private enum Color ct_borderColor = Color(Color.WHITE / 2);
+    private enum Color ct_barColor = Color.WHITE;
+
+    private enum uint ct_borderThickness = 2;
+
+    private enum uint ct_fieldWidth = ct_width;
+    private enum uint ct_fieldHeight = ct_height - ct_borderThickness * 2;
+    private enum uint ct_fieldX = 0;
+    private enum uint ct_fieldY = ct_borderThickness;
+
+    private enum uint ct_barWidth = (ct_fieldWidth / 40) & ~1;
+    private enum uint ct_barHeight = (ct_fieldHeight / 5) & ~1;
+    private enum uint ct_barX = 4;
+    private enum uint ct_barYMin = 8;
+    private enum uint ct_barYMax = ct_fieldHeight - ct_barYMin - ct_barHeight;
+
+    private uint m_barY = (ct_fieldHeight - ct_barHeight) / 2;
 
 scope:
-    this(return scope FrameBuffer fb)
-    in (fb !is null)
+    void initialize()
     {
-        m_fb = fb;
-        m_barWidth = 4;
-        m_barHeight = (m_fb.activeHeight - 2) / 5;
-        m_barYMin = 8;
-        m_barYMax = m_fb.activeHeight - 8 - m_barHeight;
-
-        reset;
     }
 
-    void reset()
+    void moveBar(short inputSpeed)
     {
-        m_barY = (m_fb.activeHeight / 2) - (m_barHeight / 2);
-        m_fb.clear;
-        drawBorders;
-        drawBar;
+        m_barY += inputSpeed;
+        m_barY = m_barY.clamp(ct_barYMin, ct_barYMax);
     }
 
-    void drawBorders()
+    void drawLine(Color[] buf, const uint y)
     {
-        m_fb[0][] = Color.WHITE;
-        m_fb[$ - 1][] = Color.WHITE;
-    }
-
-    void clearBar()
-    {
-        foreach (y; m_barY .. m_barY + m_barHeight)
+        if (ct_fieldY <= y && y < ct_fieldY + ct_fieldHeight) // In field
         {
-            auto line = m_fb[y];
-            line[0 .. m_barWidth] = Color.BLACK;
-        }
-    }
+            const uint yInField = y - ct_fieldY;
+            Color[] bufField = buf;
 
-    void drawBar()
-    {
-        // TODO: Clear and draw only the changed parts
-        foreach (y; m_barY .. m_barY + m_barHeight)
+            // Draw bar
+            if (m_barY <= yInField && yInField < m_barY + ct_barHeight)
+            {
+                static assert(ct_barX % 4 == 0);
+                static assert(ct_barWidth % 4 == 0);
+
+                bufField[0 .. ct_barX] = ct_backgroundColor;
+                bufField[ct_barX .. ct_barX + ct_barWidth] = ct_barColor;
+                bufField[ct_barX + ct_barWidth .. ct_fieldWidth] = ct_backgroundColor;
+            }
+            else
+            {
+                bufField[] = ct_backgroundColor;
+            }
+        }
+        else // Outside of field
         {
-            auto line = m_fb[y];
-            line[0 .. m_barWidth] = Color.WHITE;
+            buf[] = ct_borderColor;
         }
-    }
-
-    void moveBar(short amount)
-    {
-        m_barY += amount;
-        m_barY = m_barY.clamp(m_barYMin, m_barYMax);
     }
 }

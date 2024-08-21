@@ -1,63 +1,59 @@
 module app.pong.pong;
 
 import app.pong.drawer : PongDrawer;
-import app.pong.tcp_server : PongTcpServer;
-import app.vga.framebuffer : FrameBuffer;
+import app.vga.color : Color;
 
 import idf.esp_driver_gpio.gpio;
-import idf.esp_timer;
+import idf.esp_timer : esp_timer_get_time;
 import idf.freertos : vTaskDelay;
 
 import idfd.log : Logger;
 
 @safe:
 
-struct Pong
+struct Pong(uint ct_width, uint ct_height, int ct_pinUp, int ct_pinDown)
 {
     enum log = Logger!"Pong"();
 
-    private enum gpio_num_t m_pinUp = gpio_num_t.GPIO_NUM_12;
-    private enum gpio_num_t m_pinDown = gpio_num_t.GPIO_NUM_13;
-    private enum m_pollingRateUs = 10_000;
-    private enum m_moveSpeed = 4;
+    private enum long ct_pollingRateUs = 10_000;
+    private enum int ct_moveSpeed = 4;
 
-    private PongDrawer m_pongDrawer;
-    private PongTcpServer m_pongTcpServer;
+    private PongDrawer!(ct_width, ct_height) m_pongDrawer;
+    private long m_lastInputCheck;
 
 scope:
     @trusted
-    this(return scope FrameBuffer fb)
+    void initialize()
     {
-        m_pongDrawer = PongDrawer(fb);
+        m_pongDrawer.initialize;
 
-        gpio_set_direction(m_pinUp, GPIO_MODE_INPUT);
-        gpio_set_pull_mode(m_pinUp, GPIO_PULLDOWN_ONLY);
+        gpio_set_direction(cast(gpio_num_t) ct_pinUp, GPIO_MODE_INPUT);
+        gpio_set_pull_mode(cast(gpio_num_t) ct_pinUp, GPIO_PULLDOWN_ONLY);
 
-        gpio_set_direction(m_pinDown, GPIO_MODE_INPUT);
-        gpio_set_pull_mode(m_pinDown, GPIO_PULLDOWN_ONLY);
+        gpio_set_direction(cast(gpio_num_t) ct_pinDown, GPIO_MODE_INPUT);
+        gpio_set_pull_mode(cast(gpio_num_t) ct_pinDown, GPIO_PULLDOWN_ONLY);
+    }
 
-        long lastInputCheck;
-        while (true)
+    @trusted
+    void tick()
+    {
+        long now = esp_timer_get_time();
+        if (now - m_lastInputCheck >= ct_pollingRateUs)
         {
-            long now = esp_timer_get_time();
-            if (now - lastInputCheck >= m_pollingRateUs)
-            {
-                lastInputCheck = now;
+            m_lastInputCheck = now;
 
-                short inputSpeed;
-                if (gpio_get_level(m_pinUp))
-                    inputSpeed = -m_moveSpeed;
-                else if (gpio_get_level(m_pinDown))
-                    inputSpeed = m_moveSpeed;
-                
-                if (inputSpeed)
-                {
-                    m_pongDrawer.clearBar;
-                    m_pongDrawer.moveBar(inputSpeed);
-                    m_pongDrawer.drawBar;
-                }
-            }
-            vTaskDelay(1);
+            short inputSpeed;
+            if (gpio_get_level(cast(gpio_num_t) ct_pinUp))
+                inputSpeed = -ct_moveSpeed;
+            else if (gpio_get_level(cast(gpio_num_t) ct_pinDown))
+                inputSpeed = ct_moveSpeed;
+
+            if (inputSpeed)
+                m_pongDrawer.moveBar(inputSpeed);
         }
     }
+
+    nothrow @nogc
+    void drawLine(Color[] buf, uint y)
+        => m_pongDrawer.drawLine(buf, y);
 }
