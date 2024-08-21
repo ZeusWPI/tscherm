@@ -5,7 +5,7 @@ import app.pong.pong : Pong;
 import app.singleton : Singleton;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
-import app.vga.font : Font;
+import app.vga.font : FontMC16x32;
 import app.vga.framebuffer_interrupt.interrupt : FrameBufferInterrupt;
 import app.vga.framebuffer_interrupt.interrupt_drawer : InterruptDrawer;
 import app.vga.video_timings;
@@ -42,7 +42,7 @@ struct TScherm
     {
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
-        enum size_t lineBufferCount = 16;
+        enum size_t lineBufferCount = 24;
         enum size_t drawBatchSize = 4;
 
         enum uint i2sIndex = 1;
@@ -51,7 +51,7 @@ struct TScherm
         enum int[] colorPins = [26, 25, 17, 16, 27, 14, 12];
         enum int cSyncPin = 13;
 
-        alias font = Font!();
+        alias FontT = FontMC16x32;
 
         // enum string wifiSsid = "Zeus WPI";
         // enum string wifiPassword = "zeusisdemax";
@@ -68,11 +68,14 @@ struct TScherm
     private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, true) m_i2sSignalGenerator;
     private DMADescriptorRing m_dmaDescriptorRing;
 
-    private InterruptDrawer!(Config.vt) m_interruptDrawer;
-    private TextView!(Config.vt.h.res, Config.vt.v.res, Config.font) m_textView;
+    private Config.FontT m_font;
+    private TextView!(Config.vt.h.res, Config.vt.v.res, Config.FontT) m_textView;
     private bool m_textViewInitialized;
     // private WifiClient m_wifiClient;
     // private Pong m_pong;
+
+    @disable this();
+    @disable this(ref typeof(this));
 
     private
     void initialize()
@@ -124,8 +127,11 @@ struct TScherm
         log.info!"Starting VGA output";
         m_i2sSignalGenerator.startTransmitting(m_dmaDescriptorRing.firstDescriptor);
 
+        log.info!"Initializing Font";
+        m_font.initialize;
+
         log.info!"Initializing a TextView";
-        m_textView.initialize;
+        (() @trusted => m_textView.initialize(&m_font))();
         m_textViewInitialized = true;
 
         m_textView.writeln("Hello Zeus WPI =))))))))");
@@ -136,18 +142,15 @@ struct TScherm
         m_textView.writeln("Even more lines!");
         vTaskDelay(1000);
 
-        m_textView.writeln(`A really really really really long line with wrapping and much more text on the next few lines.........`);
-        vTaskDelay(1000);
-
-        m_textView.writeln;
         m_textView.writeln(
-            `A really really long line with wrapping`
-            ~ ` abcdefghijklmnopqrtstuvxyz`
-            ~ ` ABCDEFGHIJKLMNOPQRTSTUVXYZ`
-            ~ ` 0123456789`
-            ~ ` !"#$%&'()*+,-./`
-            ~ ` :;<=>?@ [\]^_ {|}~`
-            ~ " `"
+            `A really really really really long line with wrapping`
+                ~ ` and much more text on the next few lines.........`
+                ~ ` abcdefghijklmnopqrtstuvxyz`
+                ~ ` ABCDEFGHIJKLMNOPQRTSTUVXYZ`
+                ~ ` 0123456789`
+                ~ ` !"#$%&'()*+,-./`
+                ~ ` :;<=>?@ [\]^_ {|}~`
+                ~ " `"
         );
 
         // log.info!"Initializing WifiClient (async)";
@@ -207,10 +210,9 @@ struct TScherm
                 drawY %= Config.vt.v.res;
                 Color[] line = m_fb.getLine(drawY);
 
-                // m_interruptDrawer.drawLine(line, drawY);
                 if (m_textViewInitialized)
                 {
-                   m_textView.drawLine(line, drawY);
+                    m_textView.drawLine(line, drawY);
                 }
                 else
                 {

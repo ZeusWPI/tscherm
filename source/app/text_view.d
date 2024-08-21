@@ -18,13 +18,13 @@ if (isInstanceOf!(Font, FontT))
 nothrow @nogc:
     private enum log = Logger!"FullscreenLog"();
 
-    enum ct_font = FontT();
-    enum ct_maxCharsPerRow = ct_width / ct_font.glyphWidth;
-    enum ct_maxRows = ct_height / ct_font.glyphHeight;
+    enum ct_maxCharsPerRow = ct_width / m_font.ct_glyphWidth;
+    enum ct_maxRows = ct_height / m_font.ct_glyphHeight;
 
     static assert(ct_maxCharsPerRow >= 1);
     static assert(ct_maxRows >= 1);
 
+    private const(FontT)* m_font;
     private UniqueHeapArray!(DynArray!char) m_text;
     private size_t m_currRow;
 
@@ -32,8 +32,9 @@ scope:
     @disable this();
     @disable this(ref typeof(this));
 
-    void initialize()
+    void initialize(const(FontT)* font)
     {
+        m_font = font;
         m_text = typeof(m_text).create(ct_maxRows);
     }
 
@@ -97,7 +98,7 @@ scope:
     void drawLine(Color[] buf, uint y)
     in (y < ct_height)
     {
-        uint row = y / ct_font.glyphHeight;
+        uint row = y / m_font.ct_glyphHeight;
 
         if (row >= ct_maxRows || m_text[row].empty)
         {
@@ -105,24 +106,18 @@ scope:
         }
         else
         {
-            uint glyphY = y % ct_font.glyphHeight;
+            uint glyphY = y % m_font.ct_glyphHeight;
 
             const(char)[] text = m_text.get[row];
 
             uint xBegin, xEnd;
             foreach (char c; text)
             {
-                xEnd = xBegin + ct_font.glyphWidth;
-                buf[xBegin .. xEnd] = ct_font.getGlyphLine(c, glyphY);
+                xEnd = xBegin + m_font.ct_glyphWidth;
+                buf[xBegin .. xEnd] = m_font.getGlyphLine(c, glyphY);
                 xBegin = xEnd;
             }
             buf[xEnd .. ct_width] = Color.BLACK;
-
-            // () @trusted {
-            //     ushort[] usBuf = cast(ushort[]) buf;
-            //     for (size_t i = 0; i < ct_width / 2; i += 2)
-            //         swap(usBuf[i], usBuf[i + 1]);
-            // }();
         }
     }
 }
