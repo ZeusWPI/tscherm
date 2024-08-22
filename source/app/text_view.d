@@ -95,7 +95,7 @@ scope:
         m_currRow = 0;
     }
 
-    void drawLine(Color[] buf, uint y)
+    void drawLine(Color[] buf, uint y) const
     in (y < ct_height)
     {
         uint row = y / m_font.ct_glyphHeight;

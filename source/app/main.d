@@ -74,7 +74,7 @@ struct TScherm
 
     private WifiClient m_wifiClient;
 
-    private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown) m_pong;
+    private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown, Config.FontT) m_pong;
     private bool m_pongInitialized;
 
     @disable this();
@@ -137,22 +137,22 @@ struct TScherm
         (() @trusted => m_fullScreenLog.initialize(&m_font))();
         m_fullScreenLogInitialized = true;
 
-        log.info!"Initializing WifiClient (async)";
-        m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
-        m_wifiClient.startAsync;
+        // log.info!"Initializing WifiClient (async)";
+        // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
+        // m_wifiClient.startAsync;
 
-        log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        m_wifiClient.waitForConnection;
+        // log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        // m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        // m_wifiClient.waitForConnection;
 
-        log.info!("Connected to " ~ Config.wifiSsid ~ "!");
-        m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
-        vTaskDelay(500);
+        // log.info!("Connected to " ~ Config.wifiSsid ~ "!");
+        // m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
+        // vTaskDelay(500);
 
         log.info!"Starting Pong";
         m_fullScreenLog.writeln("Starting Pong");
         vTaskDelay(500);
-        m_pong.initialize;
+        (() @trusted => m_pong.initialize(&m_font))();
         m_pongInitialized = true;
     }
 
@@ -164,7 +164,7 @@ struct TScherm
     void loop()
     {
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
-        log.info!"Loop task running";
+        log.info!"Loop task entrypoint";
 
         while (true)
         {
@@ -172,9 +172,17 @@ struct TScherm
             const size_t currDescAddr = ulTaskGenericNotifyTake(
                 uxIndexToWaitOn: 0,
                 xClearCountOnExit: true,
-                xTicksToWait: 10_000,
+                xTicksToWait: 10,
             );
             // dfmt on
+
+            if (m_pongInitialized)
+            {
+                m_pong.tickIfReady;
+            }
+
+            if (!currDescAddr)
+                continue;
 
             const size_t firstDescAddr = cast(size_t) m_dmaDescriptorRing.firstDescriptor;
             const size_t descCount = m_dmaDescriptorRing.descriptors.length;
@@ -200,7 +208,6 @@ struct TScherm
 
                 if (m_pongInitialized)
                 {
-                    m_pong.tick;
                     m_pong.drawLine(line, drawY);
                 }
                 else if (m_fullScreenLogInitialized)

@@ -114,7 +114,7 @@ scope:
         m_bufferHFrontSyncBack[ct_vt.h.backStart  .. ct_vt.h.backEnd ] = Color.BLANK;
 
         foreach (ref Color[] buf; m_lineBuffers)
-            buf[] = Color.WHITE;
+            buf[] = Color.BLACK;
     }
     // dfmt on
 
