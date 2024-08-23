@@ -84,6 +84,8 @@ scope:
         m_ballY = ct_fieldHeight / 2;
         m_ballXVelocity = -6;
         m_ballYVelocity = ((randSeed % 8) - 4);
+        if (m_ballYVelocity <= 0)
+            m_ballYVelocity -= 1;
 
         m_score = 0;
         m_gameOver = false;
