@@ -8,7 +8,7 @@ import idfd.log : Logger;
 
 import idf.esp_timer : esp_timer_get_time;
 
-import ministd.math : clamp;
+import ministd.math : abs, clamp, inRange;
 import ministd.conv : to;
 
 @safe:
@@ -93,7 +93,7 @@ scope:
     void tickIfReady()
     {
         long now = (() @trusted => esp_timer_get_time())();
-        if (now - m_lastTickTimeUs >= ct_tickPeriodUs)
+        if (abs(now - m_lastTickTimeUs) >= ct_tickPeriodUs)
         {
             m_lastTickTimeUs = now;
 
@@ -101,8 +101,7 @@ scope:
             {
                 if (now - m_gameOverTimeUs >= ct_gameOverLengthUs)
                     reset;
-                else
-                    return;
+                return;
             }
 
             PongInputCheckResult inputCheckResult = m_pongInput.check;
