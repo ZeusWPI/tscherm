@@ -2,6 +2,8 @@ module idfd.signalio.gpio;
 
 import idfd.signalio.signal : Signal;
 
+import ministd.math : inRange;
+
 @safe nothrow @nogc:
 
 struct GPIOPin
@@ -14,7 +16,7 @@ nothrow @nogc:
 
 scope:
     this(uint pin)
-    in (FIRST_PIN <= pin && pin <= LAST_PIN)
+    in (pin.inRange!"[]"(FIRST_PIN, LAST_PIN))
     {
         m_pin = pin;
     }

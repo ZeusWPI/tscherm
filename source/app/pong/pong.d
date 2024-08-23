@@ -116,12 +116,12 @@ scope:
 
             m_ballX += m_ballXVelocity;
             m_ballY += m_ballYVelocity;
-            if (!(0 <= m_ballX && m_ballX < ct_fieldWidth))
+            if (!m_ballX.inRange(0, ct_fieldWidth))
             {
                 m_ballX = m_ballX.clamp!short(0, ct_fieldWidth);
                 m_ballXVelocity *= -1;
             }
-            if (!(0 <= m_ballY && m_ballY < ct_fieldHeight))
+            if (!m_ballY.inRange(0, ct_fieldHeight))
             {
                 m_ballY = m_ballY.clamp!short(0, ct_fieldHeight);
                 m_ballYVelocity *= -1;
@@ -129,7 +129,7 @@ scope:
 
             if (m_ballX - ct_ballRadius < ct_barX + ct_barWidth)
             {
-                if (m_barY <= m_ballY && m_ballY < m_barY + ct_barHeight)
+                if (m_ballY.inRange(m_barY, m_barY + ct_barHeight))
                 {
                     m_ballXVelocity *= -1;
                     m_score++;
@@ -152,7 +152,7 @@ scope:
 
     void drawLine(Color[] buf, const uint y) const
     {
-        if (ct_fieldY <= y && y < ct_fieldY + ct_fieldHeight)
+        if (y.inRange(ct_fieldY, ct_fieldY + ct_fieldHeight))
         {
             drawFieldLine(buf[ct_fieldX .. ct_fieldX + ct_fieldWidth], y - ct_fieldY);
         }
@@ -172,7 +172,7 @@ scope:
             buf[] = ct_backgroundColor;
 
             // Draw bar
-            if (m_barY <= y && y < m_barY + ct_barHeight)
+            if (y.inRange(m_barY, m_barY + ct_barHeight))
             {
                 static assert(ct_barX % 4 == 0, "Can't draw bar without xoring");
                 static assert(ct_barWidth % 4 == 0, "Can't draw bar without xoring");
@@ -181,7 +181,7 @@ scope:
             }
 
             // Draw ball
-            if (m_ballY - ct_ballRadius <= y && y < m_ballY + ct_ballRadius + 1)
+            if (y.inRange!"[]"(m_ballY - ct_ballRadius, m_ballY + ct_ballRadius))
                 foreach (x; m_ballX - ct_ballRadius .. m_ballX + ct_ballRadius + 1)
                     buf[x ^ 2] = ct_ballColor;
         }
@@ -193,9 +193,9 @@ scope:
 
     invariant
     {
-        assert(ct_barYMin <= m_barY && m_barY < ct_barYMax);
+        assert(m_barY.inRange(ct_barYMin, ct_barYMax));
 
-        assert(ct_ballRadius <= m_ballX && m_ballX < ct_fieldWidth - ct_ballRadius);
-        assert(ct_ballRadius <= m_ballY && m_ballY < ct_fieldHeight - ct_ballRadius);
+        assert(m_ballX.inRange(ct_ballRadius, ct_fieldWidth - ct_ballRadius));
+        assert(m_ballY.inRange(ct_ballRadius, ct_fieldHeight - ct_ballRadius));
     }
 }
