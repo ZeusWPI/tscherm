@@ -34,7 +34,7 @@ struct Pong(uint ct_width, uint ct_height, int ct_pinUp, int ct_pinDown, FontT)
     private enum ushort ct_barWidth = (ct_fieldWidth / 40) & ~1;
     private enum ushort ct_barHeight = (ct_fieldHeight / 5) & ~1;
     private enum ushort ct_barX = 4;
-    private enum ushort ct_barYMin = 8;
+    private enum ushort ct_barYMin = 0;
     private enum ushort ct_barYMax = ct_fieldHeight - ct_barYMin - ct_barHeight;
     private enum ushort ct_barMoveSpeed = 4;
 
