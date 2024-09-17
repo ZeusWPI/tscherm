@@ -1,5 +1,5 @@
 // Rewritten NETPONG based on https://archive.org/details/tucows_11948_netPONG
-// Compile with: cc -I/usr/local/include -lSDL netpong.c -o netpong
+// Compile with: cc -I/usr/local/include -L/usr/local/lib -lSDL netpong.c -o netpong -std=c11 -O3 -s
 
 #include <SDL/SDL.h>
 #include <stdio.h>
@@ -10,8 +10,8 @@
 
 #define ct_fps 75
 
-#define ct_width 640
-#define ct_height 480
+#define ct_width 1024
+#define ct_height 768
 
 #define ct_backgroundColor 0x000000U
 #define ct_borderColor 0x808080U
@@ -34,6 +34,8 @@
 typedef struct
 {
     SDL_Surface *screen;
+    // Don't change field order
+    SDL_Rect oldPaddleRect, oldBallRect;
     SDL_Rect paddleRect, ballRect;
     Sint32 paddleYVelocity, ballXVelocity, ballYVelocity;
     Uint32 lastFrameTick;
@@ -64,6 +66,16 @@ void pongInit(pong_t *pong)
     pong->paddleRect.h = ct_paddleHeight;
     pong->ballRect.w = ct_ballWidth;
     pong->ballRect.h = ct_ballHeight;
+    pong->oldPaddleRect = pong->paddleRect;
+    pong->oldBallRect = pong->ballRect;
+}
+
+Uint32 pongRGB(const pong_t *pong, const Uint32 rgb)
+{
+    const Uint8 r = (rgb >> 0) & 0xFF;
+    const Uint8 g = (rgb >> 8) & 0xFF;
+    const Uint8 b = (rgb >> 16) & 0xFF;
+    return SDL_MapRGB(pong->screen->format, r, g, b);
 }
 
 void pongReset(pong_t *pong)
@@ -78,6 +90,9 @@ void pongReset(pong_t *pong)
     pong->ballYVelocity = ct_ballSpeed * (rand() % 2 ? -1 : 1);
 
     pong->gameOver = SDL_FALSE;
+
+    SDL_FillRect(pong->screen, NULL, pongRGB(pong, ct_backgroundColor));
+    SDL_UpdateRect(pong->screen, 0, 0, 0, 0);
 }
 
 void pongKeyboardChanged(pong_t *pong, const Uint8 *keys)
@@ -99,13 +114,14 @@ void pongKeyboardChanged(pong_t *pong, const Uint8 *keys)
 void pongPollEvent(pong_t *pong)
 {
     SDL_Event event;
+    const Uint8 *keys;
     if (!SDL_PollEvent(&event))
         return;
     switch (event.type)
     {
     case SDL_KEYDOWN:
     case SDL_KEYUP:
-        const Uint8 *keys = SDL_GetKeyState(NULL);
+        keys = SDL_GetKeyState(NULL);
         pongKeyboardChanged(pong, keys);
         break;
     case SDL_QUIT:
@@ -159,20 +175,15 @@ void pongTick(pong_t *pong)
     }
 }
 
-Uint32 pongRGB(const pong_t *pong, const Uint32 rgb)
-{
-    const Uint8 r = (rgb >> 0) & 0xFF;
-    const Uint8 g = (rgb >> 8) & 0xFF;
-    const Uint8 b = (rgb >> 16) & 0xFF;
-    return SDL_MapRGB(pong->screen->format, r, g, b);
-}
-
 void pongDraw(pong_t *pong)
 {
-    SDL_FillRect(pong->screen, NULL, pongRGB(pong, ct_backgroundColor));
+    SDL_FillRect(pong->screen, &pong->oldPaddleRect, pongRGB(pong, ct_backgroundColor));
+    SDL_FillRect(pong->screen, &pong->oldBallRect, pongRGB(pong, ct_backgroundColor));
     SDL_FillRect(pong->screen, &pong->paddleRect, pongRGB(pong, ct_paddleColor));
     SDL_FillRect(pong->screen, &pong->ballRect, pongRGB(pong, ct_ballColor));
-    SDL_UpdateRect(pong->screen, 0, 0, 0, 0);
+    SDL_UpdateRects(pong->screen, 4, &pong->oldPaddleRect);
+    pong->oldPaddleRect = pong->paddleRect;
+    pong->oldBallRect = pong->ballRect;
 }
 
 void pongRun(pong_t *pong)
