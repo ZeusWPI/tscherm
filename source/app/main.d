@@ -48,10 +48,10 @@ struct TScherm
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
 
-        enum int[] colorPins = [26, 25, 17, 16, 27, 14, 12];
+        enum int[] colorPins = [12, 14, 27, 26, 25, 33, 32];
         enum int cSyncPin = 13;
-        enum int pinUp = 18;
-        enum int pinDown = 19;
+        enum int pinUp = 22;
+        enum int pinDown = 23;
 
         alias FontT = FontMC16x32;
 

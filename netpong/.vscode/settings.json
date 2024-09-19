@@ -1,0 +1,22 @@
+{
+    "files.associations": {
+        "stdio.h": "c",
+        "sdl.h": "c",
+        "sdl_main.h": "c",
+        "sdl_stdinc.h": "c",
+        "sdl_audio.h": "c",
+        "sdl_cdrom.h": "c",
+        "sdl_cpuinfo.h": "c",
+        "sdl_endian.h": "c",
+        "sdl_error.h": "c",
+        "sdl_events.h": "c",
+        "sdl_loadso.h": "c",
+        "sdl_mutex.h": "c",
+        "sdl_rwops.h": "c",
+        "sdl_thread.h": "c",
+        "sdl_timer.h": "c",
+        "sdl_video.h": "c",
+        "sdl_version.h": "c",
+        "begin_code.h": "c"
+    }
+}
