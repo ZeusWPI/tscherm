@@ -1,26 +1,29 @@
 // dfmt off
 module net;
 
-import core.sys.posix.arpa.inet;
-import core.sys.posix.netdb;
-import core.sys.posix.netinet.in_;
-import core.sys.posix.sys.socket;
+import core.sys.posix.arpa.inet : htonl, htons, INET_ADDRSTRLEN, inet_ntop, inet_pton, ntohl;
+import core.sys.posix.netdb : gethostbyname, getprotobyname, hostent, protoent;
+import core.sys.posix.netinet.in_ : sockaddr, sockaddr_in;
+import core.sys.posix.sys.socket : AF_INET, sendto, SOCK_RAW, socket;
+import core.sys.posix.unistd : unistdClose = close;
 
 import std.format : f = format;
 import std.stdio : stderr, stdout, write, writef, writefln, writeln;
 import std.string : fromStringz, toStringz;
+import std.range : chunks;
 
 import importc.pcap : PCAP_ERRBUF_SIZE,PCAP_NETMASK_UNKNOWN,
     bpf_program, pcap_t, pcap_pkthdr,
     pcap_activate, pcap_breakloop, pcap_close, pcap_compile, pcap_create, pcap_geterr, pcap_loop,
     pcap_set_buffer_size, pcap_set_promisc, pcap_set_snaplen, pcap_set_timeout, pcap_setfilter;
 
+
 private @safe:
 
 debug = net;
 
 public
-struct Net
+struct NetRx
 {
 private:
     enum size_t ct_ethHeaderLength = 14;
@@ -53,15 +56,18 @@ private:
     bpf_program m_captureFilter;
     Message loopResultMessage;
 
+    @disable this();
+    @disable this(ref typeof(this));
+
     /** 
      * Throws: NetException
      */
     public
-    this(string captureDevName, string localAddress, string remoteAddress)
+    this(string captureDevName, string localHost, string remoteHost)
     {
         m_captureDevName = captureDevName;
-        m_localAddress = localAddress;
-        m_remoteAddress = remoteAddress;
+        m_localAddress = localHost;
+        m_remoteAddress = remoteHost;
 
         scope (failure) close;
         createCaptureDev;
@@ -79,7 +85,7 @@ private:
         return loopResultMessage;
     }
 
-    public @trusted
+    public
     ~this()
     {
         close;
@@ -143,7 +149,7 @@ private:
     static extern (C) @trusted
     void loopCallback(ubyte* userArg, const pcap_pkthdr* header, const ubyte* packet)
     {
-        Net* instance = cast(Net*) userArg;
+        NetRx* instance = cast(NetRx*) userArg;
 
         if (header.len != header.caplen)
         {
@@ -239,6 +245,119 @@ private:
     {
         if (ptr is null)
             checkPcap(-1);
+    }
+}
+
+public
+struct NetTx
+{
+private:
+    uint m_remoteIpv4Address;
+    int m_socket = -1;
+    
+    @disable this();
+    @disable this(ref typeof(this));
+
+    public
+    this(string remoteHost)
+    {
+        m_remoteIpv4Address = resolveIpv4Host(remoteHost);
+
+        scope (failure) close;
+        createSocket;
+    }
+    
+    public @trusted
+    void send(NetRx.Message msg)
+    in (m_socket >= 0)
+    {
+        ubyte[NetRx.ct_icmpHeaderLength] icmpHeader;
+        ubyte[NetRx.ct_contentLength] content;
+
+        icmpHeader[0] = 0x08; // Type
+        icmpHeader[1] = 0x00; // Code
+        (cast(ushort[1]) icmpHeader[2 .. 4])[] = 0x0000.htons; // Checksum
+        (cast(ushort[1]) icmpHeader[4 .. 6])[] = 0x0000.htons; // Identifier
+        (cast(ushort[1]) icmpHeader[6 .. 8])[] = 0x0000.htons; // Sequence number
+
+        cast(char[NetRx.ct_magic.length]) content[0 .. NetRx.ct_magic.length] = NetRx.ct_magic;
+        content[NetRx.ct_magic.length .. $] = msg;
+
+        ubyte[icmpHeader.sizeof + content.sizeof] buf = icmpHeader ~ content;
+
+        (cast(ushort[1]) buf[2 .. 4])[] = icmpChecksum(buf).htons; // Checksum
+
+        sockaddr_in sin = {
+            sin_family: AF_INET,
+            sin_port: 0,
+            sin_addr: {
+                s_addr: m_remoteIpv4Address.htonl,
+            },
+        };
+        
+        ptrdiff_t sent = m_socket.sendto(
+            &buf[0], buf.sizeof,
+            0,
+            cast(sockaddr*) &sin, sin.sizeof
+        );
+
+        if (sent != buf.sizeof)
+            throw new NetException("send failed");
+    }
+
+    public
+    ~this()
+    {
+        close;
+    }
+
+    static @trusted
+    uint resolveIpv4Host(string host)
+    {
+        // hostent* result = gethostbyname(host.toStringz);
+        // if (result !is null || result.h_addr_list is null || result.h_addr_list[0] is null)
+        //     throw new NetException(f!"Failed to resolve host %s"(host));
+        // if (result.h_length != 4)
+        //     throw new NetException(f!"Unexpected resolved address length");
+        // void[4] ipv4AddressBytes = result.h_addr_list[0][0 .. 4];
+
+        ubyte[4] ipv4AddressBytes;
+        if (inet_pton(AF_INET, host.toStringz, &ipv4AddressBytes[0]) != 1)
+            throw new NetException("Only ipv4 addresses are supported");
+        return (cast(uint[1]) cast(void[4]) ipv4AddressBytes)[0].ntohl;
+    }
+
+    @trusted
+    void createSocket()
+    {
+        protoent* icmpProtoEnt = getprotobyname("ICMP");
+        assert(icmpProtoEnt !is null);
+        m_socket = socket(AF_INET, SOCK_RAW, icmpProtoEnt.p_proto);
+    }
+
+ 
+    static
+    ushort icmpChecksum(const ubyte[] ubyteBuf) {
+        uint sum;
+        foreach (chunk; ubyteBuf.chunks(2))
+        {
+            sum += chunk[0] << 8;
+            if (chunk.length > 1)
+                sum += chunk[1];
+        }
+        while (sum >> 16)
+        {
+            sum = (sum & 0xffff) + (sum >> 16);
+        }
+        return cast(ushort) ~sum;
+    }
+    
+    void close()
+    {
+        if (m_socket >= 0)
+        {
+            unistdClose(m_socket);
+        }
     }
 }
 

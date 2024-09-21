@@ -8,6 +8,10 @@ module main;
 
 import pong : Pong;
 
+import core.stdc.stdlib : exit;
+
+import std.stdio : stderr, writefln;
+
 import argparse;
 
 struct Config
@@ -16,14 +20,21 @@ struct Config
     string network_interface;
 
     @(NamedArgument(["l", "local"]).Required)
-    string local_address;
+    string local_host;
 
     @(NamedArgument(["r", "remote"]).Required)
-    string remote_address;
+    string remote_host;
 }
 
-mixin CLI!Config.main!((Config config)
-{
-    Pong* pong = new Pong(config.network_interface, config.local_address, config.remote_address);
-    pong.run;
+mixin CLI!Config.main!((Config config) {
+    try
+    {
+        Pong* pong = new Pong(config.network_interface, config.local_host, config.remote_host);
+        pong.run;
+    }
+    catch (Exception e)
+    {
+        stderr.writefln!"Caught exception in main: %s"(e);
+        exit(1);
+    }
 });

@@ -2,7 +2,7 @@
 // dfmt off
 module pong;
 
-import net : Net, NetException;
+import net : NetException, NetRx, NetTx;
 
 import core.stdc.signal : SIGINT, signal;
 import core.stdc.stdlib : atexit, exit;
@@ -10,10 +10,10 @@ import core.thread : Thread;
 import core.time : Duration, seconds;
 
 import std.algorithm : clamp, max, min;
-import std.concurrency;
+import std.concurrency : OwnerTerminated, ownerTid, receiveTimeout, send, spawnLinked, Tid;
 import std.format : f = format;
 import std.math : abs;
-import std.random;
+import std.random : uniform;
 import std.stdio : stderr, stdout, write, writef, writefln, writeln;
 import std.string : fromStringz, toStringz;
 import std.typecons : Nullable;
@@ -64,23 +64,23 @@ private:
     }
 
     string m_networkInterface;
-    string m_localAddress;
-    string m_remoteAddress;
+    string m_localHost;
+    string m_remoteHost;
 
     SDL_Surface* m_screen;
     SDL_Rect m_oldPaddleRect, m_oldBallRect, m_paddleRect, m_ballRect; // Don't change field order
     int m_paddleYVelocity, m_ballXVelocity, m_ballYVelocity;
     bool m_hasBall;
-    Tid m_netThread;
+    Tid m_netRxThread;
     uint m_lastFrameTick;
     bool m_roundOver, m_quit;
 
     public @trusted
-    this(string networkInterface, string localAddress, string remoteAddress)
+    this(string networkInterface, string localHost, string remoteHost)
     {
         m_networkInterface = networkInterface;
-        m_localAddress = localAddress;
-        m_remoteAddress = remoteAddress;
+        m_localHost = localHost;
+        m_remoteHost = remoteHost;
 
         if (SDL_Init(SDL_INIT_VIDEO) < 0)
         {
@@ -110,7 +110,7 @@ private:
         m_oldPaddleRect = m_paddleRect;
         m_oldBallRect = m_ballRect;
 
-        m_netThread = spawnLinked(&netThreadEntrypoint, m_networkInterface, m_localAddress, m_remoteAddress);
+        m_netRxThread = spawnLinked(&netRxThreadEntrypoint, m_networkInterface, m_localHost, m_remoteHost);
     }
 
     public @trusted
@@ -229,13 +229,13 @@ private:
             moveBall;
         }
 
-        // Receive all messages from net thread to keep it happy, even if
+        // Receive all messages from netRx thread to keep it happy, even if
         // we won't use them.
-        Nullable!(Net.Message) nullableMsg = pollNetBall;
+        Nullable!(NetRx.Message) nullableMsg = pollNetBall;
 
         if (!m_hasBall && !nullableMsg.isNull)
         {
-            Net.Message msg = nullableMsg.get;
+            NetRx.Message msg = nullableMsg.get;
             switch (msg[0])
             {
             case NetMessageTypes.PASS:
@@ -276,6 +276,7 @@ private:
         m_paddleRect.y = cast(short) clamp(cast(int) m_paddleRect.y, 0, ct_fieldHeight - ct_paddleHeight - 1);
     }
 
+    @trusted
     void moveBall()
     in (m_hasBall)
     {
@@ -286,7 +287,16 @@ private:
         {
             // Hit left edge
             m_hasBall = false;
-            // TODO: network
+            
+            NetRx.Message msg;
+            msg[0] = NetMessageTypes.PASS;
+            msg[1 .. 3] = (cast(ubyte*) &m_ballRect.y)[0 .. 2];
+            msg[3 .. 5] = (cast(ubyte*) &m_ballXVelocity)[0 .. 2];
+            msg[5 .. 7] = (cast(ubyte*) &m_ballYVelocity)[0 .. 2];
+            NetTx netTx = NetTx(
+                remoteHost: m_remoteHost,
+            );
+            netTx.send(msg);
         }
         if (m_ballRect.x >= ct_fieldWidth - ct_ballWidth)
         {
@@ -316,9 +326,9 @@ private:
     }
 
     @trusted
-    Nullable!(Net.Message) pollNetBall()
+    Nullable!(NetRx.Message) pollNetBall()
     {
-        Nullable!(Net.Message) nullableMsg;
+        Nullable!(NetRx.Message) nullableMsg;
 
         try
         {
@@ -326,13 +336,13 @@ private:
             do
             {
                 result = receiveTimeout(Duration.zero,
-                    (Net.Message m) => nullableMsg = m,
+                    (NetRx.Message m) => nullableMsg = m,
                 );
             } while (result);
         }
         catch (OwnerTerminated e)
         {
-            stderr.writefln!"Net thread terminated: %s"(e);
+            stderr.writefln!"netRx thread terminated: %s"(e);
             exit(1);
         }
 
@@ -340,24 +350,24 @@ private:
     }
 
     static @trusted
-    void netThreadEntrypoint(string networkInterface, string localAddress, string remoteAddress)
+    void netRxThreadEntrypoint(string networkInterface, string localHost, string remoteHost)
     {
         while (true)
         {
             try
             {
-                Net net = Net(
+                NetRx netRx = NetRx(
                     captureDevName: networkInterface,
-                    localAddress: localAddress,
-                    remoteAddress: remoteAddress,
+                    localHost: localHost,
+                    remoteHost: remoteHost,
                 );
-                Net.Message message = net.receive;
+                NetRx.Message message = netRx.receive;
                 ownerTid.send(message);
 
             }
             catch (Exception e)
             {
-                stderr.writefln!"net thread: caught Exception: %s"(e);
+                stderr.writefln!"netRx thread: caught Exception: %s"(e);
                 Thread.sleep(1.seconds);
             }
         }
