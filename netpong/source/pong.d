@@ -2,7 +2,7 @@
 // dfmt off
 module pong;
 
-import net : NetException, NetRx, NetTx;
+import net : Message, MessageType, NetException, NetRx, NetTx;
 
 import core.stdc.signal : SIGINT, signal;
 import core.stdc.stdlib : atexit, exit;
@@ -56,20 +56,13 @@ private:
     enum ushort ct_ballHeight = ct_ballWidth;
     enum short ct_ballSpeed = ct_width * 60 / (128 * ct_fps);
 
-    enum NetMessageTypes : ubyte
-    {
-        PASS,
-        LOST,
-        RESET,
-    }
-
     string m_networkInterface;
     string m_localHost;
     string m_remoteHost;
 
     SDL_Surface* m_screen;
     SDL_Rect m_oldPaddleRect, m_oldBallRect, m_paddleRect, m_ballRect; // Don't change field order
-    int m_paddleYVelocity, m_ballXVelocity, m_ballYVelocity;
+    short m_paddleYVelocity, m_ballXVelocity, m_ballYVelocity;
     bool m_hasBall;
     Tid m_netRxThread;
     uint m_lastFrameTick;
@@ -231,40 +224,36 @@ private:
 
         // Receive all messages from netRx thread to keep it happy, even if
         // we won't use them.
-        Nullable!(NetRx.Message) nullableMsg = pollNetBall;
+        Nullable!(Message) nullableMsg = pollNetBall;
 
         if (!m_hasBall && !nullableMsg.isNull)
         {
-            NetRx.Message msg = nullableMsg.get;
-            switch (msg[0])
+            Message msg = nullableMsg.get;
+            switch (msg.type)
             {
-            case NetMessageTypes.PASS:
+            case MessageType.PASS:
                 {
-                    short yPos      = (cast(short[]) cast(void[]) msg[1 .. 3])[0];
-                    short xVelocity = (cast(short[]) cast(void[]) msg[3 .. 5])[0];
-                    short yVelocity = (cast(short[]) cast(void[]) msg[5 .. 7])[0];
-
                     m_hasBall = true;
                     m_ballRect.x = 0;
-                    m_ballRect.y = yPos;
-                    m_ballXVelocity = xVelocity;
-                    m_ballYVelocity = yVelocity;
+                    m_ballRect.y = msg.yPos;
+                    m_ballXVelocity = abs(msg.xVelocity);
+                    m_ballYVelocity = msg.yVelocity;
                 }
                 break;
-            case NetMessageTypes.LOST:
+            case MessageType.LOST:
                 {
                     m_roundOver = true;
                     m_hasBall = true;
                 }
                 break;
-            case NetMessageTypes.RESET:
+            case MessageType.RESET:
                 {
                     m_roundOver = true;
                     // TODO: reset score
                 }
                 break;
             default:
-                stderr.writefln!"Unknown message type %02x"(msg[0]);
+                stderr.writefln!"Unknown message type %02x"(msg.type);
                 break;
             }
         }
@@ -288,11 +277,12 @@ private:
             // Hit left edge
             m_hasBall = false;
             
-            NetRx.Message msg;
-            msg[0] = NetMessageTypes.PASS;
-            msg[1 .. 3] = (cast(ubyte*) &m_ballRect.y)[0 .. 2];
-            msg[3 .. 5] = (cast(ubyte*) &m_ballXVelocity)[0 .. 2];
-            msg[5 .. 7] = (cast(ubyte*) &m_ballYVelocity)[0 .. 2];
+            Message msg = {
+                type: MessageType.PASS,
+                yPos: m_ballRect.y,
+                xVelocity: m_ballXVelocity,
+                yVelocity: m_ballYVelocity,
+            };
             NetTx netTx = NetTx(
                 remoteHost: m_remoteHost,
             );
@@ -311,7 +301,7 @@ private:
         if (m_ballRect.y >= ct_fieldHeight - ct_ballHeight)
         {
             // Hit bottom edge
-            m_ballYVelocity = -abs(m_ballYVelocity);
+            m_ballYVelocity = cast(short) -abs(m_ballYVelocity);
         }
 
         m_ballRect.x = cast(short) clamp(cast(int) m_ballRect.x, 0, ct_fieldWidth - ct_ballWidth - 1);
@@ -321,14 +311,14 @@ private:
             && inRange(m_ballRect.y, m_paddleRect.y, m_paddleRect.y + ct_paddleHeight))
         {
             m_ballRect.x = cast(short) (m_paddleRect.x - ct_ballWidth);
-            m_ballXVelocity = -abs(m_ballXVelocity);
+            m_ballXVelocity = cast(short) -abs(m_ballXVelocity);
         }
     }
 
     @trusted
-    Nullable!(NetRx.Message) pollNetBall()
+    Nullable!(Message) pollNetBall()
     {
-        Nullable!(NetRx.Message) nullableMsg;
+        Nullable!(Message) nullableMsg;
 
         try
         {
@@ -336,7 +326,7 @@ private:
             do
             {
                 result = receiveTimeout(Duration.zero,
-                    (NetRx.Message m) => nullableMsg = m,
+                    (Message m) => nullableMsg = m,
                 );
             } while (result);
         }
@@ -361,7 +351,7 @@ private:
                     localHost: localHost,
                     remoteHost: remoteHost,
                 );
-                NetRx.Message message = netRx.receive;
+                Message message = netRx.receive;
                 ownerTid.send(message);
 
             }

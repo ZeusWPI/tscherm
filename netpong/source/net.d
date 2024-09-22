@@ -1,39 +1,144 @@
 // dfmt off
 module net;
 
-import core.sys.posix.arpa.inet : htonl, htons, INET_ADDRSTRLEN, inet_ntop, inet_pton, ntohl;
+import core.sys.posix.arpa.inet : htonl, INET_ADDRSTRLEN, inet_ntop, inet_pton, ntohl;
 import core.sys.posix.netdb : gethostbyname, getprotobyname, hostent, protoent;
 import core.sys.posix.netinet.in_ : sockaddr, sockaddr_in;
 import core.sys.posix.sys.socket : AF_INET, sendto, SOCK_RAW, socket;
 import core.sys.posix.unistd : unistdClose = close;
 
+import std.bitmanip : swapEndian;
 import std.format : f = format;
+import std.range : chunks;
 import std.stdio : stderr, stdout, write, writef, writefln, writeln;
 import std.string : fromStringz, toStringz;
-import std.range : chunks;
 
 import importc.pcap : PCAP_ERRBUF_SIZE,PCAP_NETMASK_UNKNOWN,
     bpf_program, pcap_t, pcap_pkthdr,
     pcap_activate, pcap_breakloop, pcap_close, pcap_compile, pcap_create, pcap_geterr, pcap_loop,
     pcap_set_buffer_size, pcap_set_promisc, pcap_set_snaplen, pcap_set_timeout, pcap_setfilter;
 
-
 private @safe:
 
 debug = net;
+
+enum bool staticAmong(needle, haystack...) = {
+    foreach (el; haystack)
+        if (is(needle == el))
+            return true;
+    return false;
+}();
+
+enum size_t ct_ethHeaderLength = 14;
+enum size_t ct_ipv4HeaderLength = 20;
+enum size_t ct_icmpHeaderLength = 8;
+enum size_t ct_contentLength = Message.sizeof;
+
+struct EthernetHeader
+{
+align(1):
+    ubyte[6] destMac;
+    ubyte[6] sourceMac;
+    ushort type;
+}
+
+struct Ipv4Header
+{
+align(1):
+    ubyte version_ : 4;
+    ubyte headerLengthDiv4 : 4;
+    ubyte dscp : 6;
+    ubyte ecn : 2;
+    ushort totalLength;
+    ushort identification;
+    bool reservedBit : 1;
+    bool doNotFragment : 1;
+    bool moreFragments : 1;
+    ushort flagsAndOffset : 13;
+    ubyte ttl;
+    ubyte protocol;
+    ushort headerChecksum;
+    uint sourceAddress;
+    uint destAddress;
+}
+
+struct IcmpHeader
+{
+    ubyte type;
+    ubyte code;
+    ushort checksum;
+    ushort identifier;
+    ushort sequenceNumber;
+}
+static assert (IcmpHeader.sizeof == ct_icmpHeaderLength);
+
+public
+enum MessageType : ubyte
+{
+    PASS,
+    LOST,
+    RESET,
+}
+
+public
+struct Message
+{
+align(1):
+    ubyte[8] magic = cast(ubyte[8]) "NETPONG!";
+    MessageType type;
+    short yPos;
+    short xVelocity;
+    short yVelocity;
+}
+
+@trusted
+void fromRawBuf(S)(ref S s, const ubyte[] rawBuf)
+if (is(S == struct))
+in (rawBuf.length == S.sizeof)
+{
+    (cast(ubyte*) &s)[0 .. S.sizeof] = rawBuf;
+    version (LittleEndian)
+    {
+        static foreach (member; __traits(allMembers, S))
+        {{
+            alias M = typeof(mixin(f!"S.%s"(member)));
+            static if (staticAmong!(M, short, ushort, int, uint, long, ulong))
+            {
+                pragma(msg, f!"fromRawBuf: swapping %s"(member));
+                mixin(f!"s.%s = s.%s.swapEndian;"(member, member));
+            }
+        }}
+    }
+}
+
+@trusted
+ubyte[S.sizeof] toRawBuf(S)(const ref S sConst)
+if (is(S == struct))
+{
+    S s = sConst;
+    version (LittleEndian)
+    {
+        static foreach (string member; __traits(allMembers, S))
+        {{
+            alias M = typeof(mixin(f!"S.%s"(member)));
+            static if (staticAmong!(M, short, ushort, int, uint, long, ulong))
+            {
+                pragma(msg, f!"toRawBuf: swapping %s"(member));
+                mixin(f!"s.%s = s.%s.swapEndian;"(member, member));
+            }
+        }}
+    }
+    return (cast(ubyte*) &s)[0 .. S.sizeof];
+}
 
 public
 struct NetRx
 {
 private:
-    enum size_t ct_ethHeaderLength = 14;
-    enum size_t ct_ipv4HeaderLength = 20;
-    enum size_t ct_icmpHeaderLength = 8;
-    enum size_t ct_contentLength = 15;
     enum size_t ct_totalPacketLength = ct_ethHeaderLength + ct_ipv4HeaderLength + ct_icmpHeaderLength
         + ct_contentLength;
 
-    enum size_t ct_ethHeaderBegin = 0;
+    enum size_t ct_ethHeaderBegin = 2;
     enum size_t ct_ethHeaderEnd = ct_ethHeaderBegin + ct_ethHeaderLength;
     enum size_t ct_ipv4HeaderBegin = ct_ethHeaderEnd;
     enum size_t ct_ipv4HeaderEnd = ct_ipv4HeaderBegin + ct_ipv4HeaderLength;
@@ -41,11 +146,6 @@ private:
     enum size_t ct_icmpHeaderEnd = ct_icmpHeaderBegin + ct_icmpHeaderLength;
     enum size_t ct_contentBegin = ct_icmpHeaderEnd;
     enum size_t ct_contentEnd = ct_contentBegin + ct_contentLength;
-
-    enum string ct_magic = "NETPONG!";
-
-    public alias Message = ubyte[7];
-    static assert(Message.sizeof == ct_contentLength - ct_magic.length);
 
     string m_captureDevName;
     string m_localAddress;
@@ -188,23 +288,20 @@ private:
             // (Has nothing of interest)
         }
 
-        char[] magic;
-        Message message;
+        Message msg;
         { // Parse content
-            magic = cast(char[]) content[0 .. ct_magic.length];
-            message = content[ct_magic.length .. $];
+            msg.fromRawBuf(content);
         }
 
         debug (net) writefln!`Got a packet:`;
         debug (net) writefln!`  source ip = %s`(sourceIpString);
         debug (net) writefln!`  dest ip = %s`(destIpString);
-        debug (net) writefln!`  magic = "%s"`(magic);
-        debug (net) writefln!`  message = [%(0x%02x, %)]`(message);
+        debug (net) writefln!`  message = %s`(msg);
 
-        if (magic == ct_magic)
+        if (msg.magic == msg.init.magic)
         {
             debug (net) writeln("Magic is correct, breaking loop and returning from receive().");
-            instance.loopResultMessage = message;
+            instance.loopResultMessage = msg;
             pcap_breakloop(instance.m_captureDev);
         }
     }
@@ -268,24 +365,23 @@ private:
     }
     
     public @trusted
-    void send(NetRx.Message msg)
+    void send(Message msg)
     in (m_socket >= 0)
     {
-        ubyte[NetRx.ct_icmpHeaderLength] icmpHeader;
-        ubyte[NetRx.ct_contentLength] content;
+        IcmpHeader icmpHeader = {
+            type: 0x08,
+            code: 0x00,
+            checksum: 0x0000,
+            identifier: 0x0000,
+            sequenceNumber: 0x0000,
+        };
 
-        icmpHeader[0] = 0x08; // Type
-        icmpHeader[1] = 0x00; // Code
-        (cast(ushort[1]) icmpHeader[2 .. 4])[] = 0x0000.htons; // Checksum
-        (cast(ushort[1]) icmpHeader[4 .. 6])[] = 0x0000.htons; // Identifier
-        (cast(ushort[1]) icmpHeader[6 .. 8])[] = 0x0000.htons; // Sequence number
+        ubyte[ct_icmpHeaderLength + ct_contentLength] buf;
+        buf[0 .. ct_icmpHeaderLength] = icmpHeader.toRawBuf;
+        buf[ct_icmpHeaderLength .. $] = msg.toRawBuf;
 
-        cast(char[NetRx.ct_magic.length]) content[0 .. NetRx.ct_magic.length] = NetRx.ct_magic;
-        content[NetRx.ct_magic.length .. $] = msg;
-
-        ubyte[icmpHeader.sizeof + content.sizeof] buf = icmpHeader ~ content;
-
-        (cast(ushort[1]) buf[2 .. 4])[] = icmpChecksum(buf).htons; // Checksum
+        icmpHeader.checksum = icmpChecksum(buf);
+        buf[0 .. ct_icmpHeaderLength] = icmpHeader.toRawBuf;
 
         sockaddr_in sin = {
             sin_family: AF_INET,
@@ -334,7 +430,6 @@ private:
         assert(icmpProtoEnt !is null);
         m_socket = socket(AF_INET, SOCK_RAW, icmpProtoEnt.p_proto);
     }
-
  
     static
     ushort icmpChecksum(const ubyte[] ubyteBuf) {
