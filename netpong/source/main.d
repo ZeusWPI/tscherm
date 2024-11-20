@@ -1,9 +1,3 @@
-// Try with: ping -c1 -s 15 -p 4e4554504f4e472100400006000800 -c1 [remote]
-// magic: 4e4554504f4e4721
-// type: 00   (ubyte)
-// yPos: 4000 (LE short)
-// xVel: 0600 (LE short)
-// yVel: 0800 (LE short)
 module main;
 
 import pong : Pong;
@@ -24,12 +18,20 @@ struct Config
 
     @(NamedArgument(["r", "remote"]).Required)
     string remote_host;
+
+    @(NamedArgument(["a", "accept-echo-reply"]).Optional)
+    bool accept_echo_reply;
 }
 
 mixin CLI!Config.main!((Config config) {
     try
     {
-        Pong* pong = new Pong(config.network_interface, config.local_host, config.remote_host);
+        Pong* pong = new Pong(
+            config.network_interface,
+            config.local_host,
+            config.remote_host,
+            config.accept_echo_reply,
+        );
         pong.run;
     }
     catch (Exception e)

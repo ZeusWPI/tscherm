@@ -43,15 +43,14 @@ private:
     enum uint ct_paddleColor = 0xFFFFFFU;
     enum uint ct_ballColor = 0xC0C0C0U;
 
-    enum ushort ct_fieldWidth = ct_width;
-    enum ushort ct_fieldHeight = ct_height;
+    enum ushort ct_borderThickness = 2;
 
-    enum ushort ct_paddleWidth = ct_fieldWidth / 40;
-    enum ushort ct_paddleHeight = ct_fieldHeight / 5;
-    enum short ct_paddleXPos = ct_fieldWidth - ct_paddleWidth;
+    enum ushort ct_paddleWidth = ct_width / 40;
+    enum ushort ct_paddleHeight = ct_height / 5;
+    enum short ct_paddleXPos = ct_width - ct_paddleWidth;
     enum short ct_paddleSpeed = ct_height * 60 / (120 * ct_fps);
 
-    enum ushort ct_ballRadius = ct_fieldHeight / 240; // 0 For a single pixel;
+    enum ushort ct_ballRadius = ct_height / 240; // 0 For a single pixel;
     enum ushort ct_ballWidth = 1 + 2 * ct_ballRadius;
     enum ushort ct_ballHeight = ct_ballWidth;
     enum short ct_ballSpeed = ct_width * 60 / (128 * ct_fps);
@@ -59,9 +58,12 @@ private:
     string m_networkInterface;
     string m_localHost;
     string m_remoteHost;
+    bool m_acceptEchoReply;
 
     SDL_Surface* m_screen;
-    SDL_Rect m_oldPaddleRect, m_oldBallRect, m_paddleRect, m_ballRect; // Don't change field order
+    SDL_Rect m_topBorderRect, m_bottomBorderRect;
+    SDL_Rect m_oldPaddleRect, m_oldBallRect;
+    SDL_Rect m_paddleRect, m_ballRect;
     short m_paddleYVelocity, m_ballXVelocity, m_ballYVelocity;
     bool m_hasBall;
     Tid m_netRxThread;
@@ -69,11 +71,12 @@ private:
     bool m_roundOver, m_quit;
 
     public @trusted
-    this(string networkInterface, string localHost, string remoteHost)
+    this(string networkInterface, string localHost, string remoteHost, bool acceptEchoReply)
     {
         m_networkInterface = networkInterface;
         m_localHost = localHost;
         m_remoteHost = remoteHost;
+        m_acceptEchoReply = acceptEchoReply;
 
         if (SDL_Init(SDL_INIT_VIDEO) < 0)
         {
@@ -94,6 +97,13 @@ private:
 
         SDL_WM_SetCaption("NETPONG", null);
 
+        m_topBorderRect.w = ct_width;
+        m_topBorderRect.h = ct_borderThickness;
+
+        m_bottomBorderRect.w = ct_width;
+        m_bottomBorderRect.h = ct_borderThickness;
+        m_bottomBorderRect.y = ct_height - ct_borderThickness;
+
         m_paddleRect.w = ct_paddleWidth;
         m_paddleRect.h = ct_paddleHeight;
 
@@ -103,7 +113,7 @@ private:
         m_oldPaddleRect = m_paddleRect;
         m_oldBallRect = m_ballRect;
 
-        m_netRxThread = spawnLinked(&netRxThreadEntrypoint, m_networkInterface, m_localHost, m_remoteHost);
+        m_netRxThread = spawnLinked(&netRxThreadEntrypoint, m_networkInterface, m_localHost, m_remoteHost, m_acceptEchoReply);
     }
 
     public @trusted
@@ -139,13 +149,16 @@ private:
     void reset()
     {
         SDL_FillRect(m_screen, null, fromRGB(ct_backgroundColor));
-        SDL_UpdateRects(m_screen, 4, &m_oldPaddleRect);
+        SDL_FillRect(m_screen, &m_topBorderRect, fromRGB(ct_borderColor));
+        SDL_FillRect(m_screen, &m_bottomBorderRect, fromRGB(ct_borderColor));
+        SDL_Rect[6] rects = [m_topBorderRect, m_bottomBorderRect, m_oldPaddleRect, m_oldBallRect, m_paddleRect, m_ballRect];
+        SDL_UpdateRects(m_screen, 6, &rects[0]);
 
-        m_paddleRect.x = ct_fieldWidth - 1 - ct_paddleWidth;
-        m_paddleRect.y = (ct_fieldHeight - ct_paddleHeight) / 2;
+        m_paddleRect.x = ct_width - 1 - ct_paddleWidth;
+        m_paddleRect.y = (ct_height - ct_paddleHeight) / 2;
 
-        m_ballRect.x = (ct_fieldWidth - ct_ballWidth) / 2;
-        m_ballRect.y = (ct_fieldHeight - ct_ballHeight) / 2;
+        m_ballRect.x = (ct_width - ct_ballWidth) / 2;
+        m_ballRect.y = (ct_height - ct_ballHeight) / 2;
 
         m_oldPaddleRect = m_paddleRect;
         m_oldBallRect = m_ballRect;
@@ -176,7 +189,7 @@ private:
             break;
         case SDL_QUIT:
             {
-                stderr.writeln("Got SQL_QUIT event");
+                debug (pong) stderr.writeln("Got SQL_QUIT event");
                 m_quit = true;
             }
             break;
@@ -190,13 +203,13 @@ private:
     {
         if (keys[SDLK_ESCAPE] == SDL_PRESSED)
         {
-            stderr.writeln("Got ESCAPE key");
+            debug (pong) stderr.writeln("Got ESCAPE key");
             m_quit = true;
         }
 
         if (keys[SDLK_s] == SDL_PRESSED)
         {
-            stderr.writeln("Got S key");
+            debug (pong) stderr.writeln("Got S key");
             if (!m_hasBall)
             {
                 m_hasBall = true;
@@ -262,7 +275,11 @@ private:
     void movePaddle()
     {
         m_paddleRect.y += m_paddleYVelocity;
-        m_paddleRect.y = cast(short) clamp(cast(int) m_paddleRect.y, 0, ct_fieldHeight - ct_paddleHeight - 1);
+        m_paddleRect.y = cast(short) clamp(
+            cast(int) m_paddleRect.y,
+            ct_borderThickness,
+            ct_height - ct_borderThickness - ct_paddleHeight,
+        );
     }
 
     @trusted
@@ -272,7 +289,7 @@ private:
         m_ballRect.x += m_ballXVelocity;
         m_ballRect.y += m_ballYVelocity;
 
-        if (m_ballRect.x < 0)
+        if (m_ballRect.x < ct_borderThickness)
         {
             // Hit left edge
             m_hasBall = false;
@@ -288,7 +305,7 @@ private:
             );
             netTx.send(msg);
         }
-        if (m_ballRect.x >= ct_fieldWidth - ct_ballWidth)
+        if (m_ballRect.x >= ct_width - ct_ballWidth)
         {
             // Hit right edge
             m_roundOver = true;
@@ -298,14 +315,14 @@ private:
             // Hit top edge
             m_ballYVelocity = abs(m_ballYVelocity);
         }
-        if (m_ballRect.y >= ct_fieldHeight - ct_ballHeight)
+        if (m_ballRect.y >= ct_height - ct_borderThickness - ct_ballHeight)
         {
             // Hit bottom edge
             m_ballYVelocity = cast(short) -abs(m_ballYVelocity);
         }
 
-        m_ballRect.x = cast(short) clamp(cast(int) m_ballRect.x, 0, ct_fieldWidth - ct_ballWidth - 1);
-        m_ballRect.y = cast(short) clamp(cast(int) m_ballRect.y, 0, ct_fieldHeight - ct_ballHeight - 1);
+        m_ballRect.x = cast(short) clamp(cast(int) m_ballRect.x, 0, ct_width - ct_ballWidth - 1);
+        m_ballRect.y = cast(short) clamp(cast(int) m_ballRect.y, 0, ct_height - ct_ballHeight - 1);
 
         if (m_ballRect.x + ct_ballWidth >= ct_paddleXPos 
             && inRange(m_ballRect.y, m_paddleRect.y, m_paddleRect.y + ct_paddleHeight))
@@ -340,7 +357,7 @@ private:
     }
 
     static @trusted
-    void netRxThreadEntrypoint(string networkInterface, string localHost, string remoteHost)
+    void netRxThreadEntrypoint(string networkInterface, string localHost, string remoteHost, bool acceptEchoReply)
     {
         while (true)
         {
@@ -350,6 +367,7 @@ private:
                     captureDevName: networkInterface,
                     localHost: localHost,
                     remoteHost: remoteHost,
+                    acceptEchoReply: acceptEchoReply,
                 );
                 Message message = netRx.receive;
                 ownerTid.send(message);
@@ -366,11 +384,14 @@ private:
     @trusted
     void draw()
     {
-        SDL_FillRect(m_screen, &m_oldPaddleRect, fromRGB(ct_backgroundColor));
-        SDL_FillRect(m_screen, &m_oldBallRect,   fromRGB(ct_backgroundColor));
-        SDL_FillRect(m_screen, &m_paddleRect,    fromRGB(ct_paddleColor));
-        SDL_FillRect(m_screen, &m_ballRect,      fromRGB(m_hasBall ? ct_ballColor : ct_backgroundColor));
-        SDL_UpdateRects(m_screen, 4, &m_oldPaddleRect);
+        SDL_FillRect(m_screen, &m_oldPaddleRect,    fromRGB(ct_backgroundColor));
+        SDL_FillRect(m_screen, &m_oldBallRect,      fromRGB(ct_backgroundColor));
+        SDL_FillRect(m_screen, &m_paddleRect,       fromRGB(ct_paddleColor));
+        SDL_FillRect(m_screen, &m_ballRect,         fromRGB(m_hasBall ? ct_ballColor : ct_backgroundColor));
+        SDL_FillRect(m_screen, &m_topBorderRect,    fromRGB(ct_borderColor));
+        SDL_FillRect(m_screen, &m_bottomBorderRect, fromRGB(ct_borderColor));
+        SDL_Rect[6] rects = [m_topBorderRect, m_bottomBorderRect, m_oldPaddleRect, m_oldBallRect, m_paddleRect, m_ballRect];
+        SDL_UpdateRects(m_screen, 6, &rects[0]);
         m_oldPaddleRect = m_paddleRect;
         m_oldBallRect = m_ballRect;
     }

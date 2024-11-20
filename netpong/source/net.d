@@ -7,6 +7,7 @@ import core.sys.posix.netinet.in_ : sockaddr, sockaddr_in;
 import core.sys.posix.sys.socket : AF_INET, sendto, SOCK_RAW, socket;
 import core.sys.posix.unistd : unistdClose = close;
 
+import std.array : Appender;
 import std.bitmanip : swapEndian;
 import std.format : f = format;
 import std.range : chunks;
@@ -19,8 +20,6 @@ import importc.pcap : PCAP_ERRBUF_SIZE,PCAP_NETMASK_UNKNOWN,
     pcap_set_buffer_size, pcap_set_promisc, pcap_set_snaplen, pcap_set_timeout, pcap_setfilter;
 
 private @safe:
-
-debug = net;
 
 enum bool staticAmong(needle, haystack...) = {
     foreach (el; haystack)
@@ -150,6 +149,7 @@ private:
     string m_captureDevName;
     string m_localAddress;
     string m_remoteAddress;
+    bool m_acceptEchoReply;
 
     char[PCAP_ERRBUF_SIZE] errBuf = 0;
     pcap_t* m_captureDev;
@@ -163,11 +163,12 @@ private:
      * Throws: NetException
      */
     public
-    this(string captureDevName, string localHost, string remoteHost)
+    this(string captureDevName, string localHost, string remoteHost, bool acceptEchoReply)
     {
         m_captureDevName = captureDevName;
         m_localAddress = localHost;
         m_remoteAddress = remoteHost;
+        m_acceptEchoReply = acceptEchoReply;
 
         scope (failure) close;
         createCaptureDev;
@@ -218,16 +219,18 @@ private:
         string filterString = buildCaptureFilterString;
         checkPcap(pcap_compile(m_captureDev, &m_captureFilter,
             /*str:*/ filterString.toStringz,
-            /*optimize:*/ 0,
+            /*optimize:*/ 1,
             /*netmask:*/ PCAP_NETMASK_UNKNOWN,
         ));
     }
 
     string buildCaptureFilterString() const
     {
-        return f!"icmp[icmptype]==icmp-echo and src host %s and dst host %s"(
-            m_remoteAddress, m_localAddress,
-        );
+        string res;
+        res ~= f!"(icmp[icmptype] & (icmp-echo%s) != 0)"(m_acceptEchoReply ? "|icmp-echoreply" : "");
+        res ~= f!"and src host %s "(m_localAddress);
+        res ~= f!"and dst host %s "(m_remoteAddress);
+        return res;
     }
 
     @trusted
