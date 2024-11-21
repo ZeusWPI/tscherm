@@ -35,8 +35,8 @@ struct TScherm
     {
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
-        enum size_t lineBufferCount = 24;
-        enum size_t drawBatchSize = 12;
+        enum size_t lineBufferCount = 16;
+        enum size_t drawBatchSize = 8;
 
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
@@ -106,7 +106,7 @@ struct TScherm
         // dfmt off
         for (
             size_t i = Config.vt.v.resStart + Config.drawBatchSize * 2 - 1;
-            i < m_dmaDescriptorRing.descriptors.length;
+            i < Config.vt.v.resStart + Config.vt.v.res * 2;
             i += Config.drawBatchSize * 2
         )
             m_dmaDescriptorRing.descriptors[i].eof = 1;
@@ -159,7 +159,6 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task entrypoint";
 
-        uint lastY = uint.max;
         uint drawI;
 
         while (true)
@@ -181,34 +180,26 @@ struct TScherm
                 continue;
 
             const size_t firstDescAddr = cast(size_t) m_dmaDescriptorRing.firstDescriptor;
-            const size_t descCount = m_dmaDescriptorRing.descriptors.length;
 
             assert(currDescAddr >= firstDescAddr);
             assert((currDescAddr - firstDescAddr) % lldesc_t.sizeof == 0);
             const size_t currDescIndex = (currDescAddr - firstDescAddr) / lldesc_t.sizeof;
-            const size_t nextDescIndex = (currDescIndex + 1) % descCount;
 
-            const uint currY = () {
-                if (Config.vt.v.resStart <= nextDescIndex)
-                    return (nextDescIndex - Config.vt.v.resStart) / 2;
-                else
-                    return 0;
-            }();
-
-            assert(currY < Config.vt.v.res);
-
-            if (currY == lastY)
+            if (!(Config.vt.v.resStart <= currDescIndex && currDescIndex < Config.vt.v.resStart + Config.vt.v.res * 2))
                 continue;
 
-            foreach (drawY; currY + Config.drawBatchSize
-                .. min(currY + Config.drawBatchSize * 2, Config.vt.v.res))
+            uint currY = (currDescIndex - Config.vt.v.resStart) / 2;
+            uint drawYStart = (currY + Config.drawBatchSize) % Config.vt.v.res;
+            drawYStart -= (drawYStart % Config.drawBatchSize);
+
+            foreach (drawY; drawYStart .. min(drawYStart + Config.drawBatchSize, Config.vt.v.res))
             {
                 Color[] line = m_fb.getLine(drawY);
 
                 if (m_pongInitialized)
                 {
                     // m_pong.drawLine(line, drawY);
-                    for (ushort x = 0; x < Config.vt.h.res*3/4; x++)
+                    for (ushort x = 0; x < Config.vt.h.res / 2; x++)
                     {
                         line[x ^ 2] = Color((drawY + x) % 0x80);
                         // line[(drawY ^ 2) % Config.vt.h.res] = Color.WHITE;
@@ -228,7 +219,6 @@ struct TScherm
                 }
             }
 
-            lastY = currY;
             drawI++;
         }
     }
