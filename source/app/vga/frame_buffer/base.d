@@ -1,4 +1,4 @@
-module app.vga.framebuffer.base;
+module app.vga.frame_buffer.base;
 
 import app.vga.color : Color;
 import app.vga.video_timings : VideoTimings;
@@ -12,21 +12,20 @@ import ministd.heap_caps : dallocArrayCaps;
 @safe nothrow @nogc:
 
 abstract
-class FrameBuffer
+class FrameBuffer(VideoTimings ct_vt)
 {
 nothrow @nogc:
 pragma(inline, true):
     enum log = Logger!"FrameBuffer"();
 
-    protected immutable(VideoTimings)* m_vt;
     protected Color[][] m_allBuffers; /// Cycically looping this array produces the video signal
     protected Color[][] m_activeLineBuffers; /// The active parts of m_allBuffers, has dimensions `activeHeight * activeWidth`
 
-    this(immutable(VideoTimings)* vt)
-    in (vt !is null)
+    this()
     {
-        m_vt = vt;
     }
+
+    @disable this(ref typeof(this));
 
     ~this()
     {
@@ -35,33 +34,11 @@ pragma(inline, true):
 scope:
     final pure
     size_t activeWidth() const
-        => m_vt.h.res;
+        => ct_vt.h.res;
 
     final pure
     size_t activeHeight() const
-        => m_vt.v.res;
-
-    final pure
-    Color[][] allBuffers()
-        => m_allBuffers;
-
-    final pure
-    Color[][] activeLineBuffers()
-        => m_activeLineBuffers;
-
-    // in (y < m_vt.v.res)
-    final pure
-    Color[] getLine(in size_t y)
-        => m_activeLineBuffers[y];
-
-    final pure
-    Color[] opIndex(in size_t y)
-        => getLine(y);
-
-    // in (x < m_vt.h.res)
-    final pure
-    ref Color opIndex(in size_t y, in size_t x)
-        => getLine(y)[x ^ 2];
+        => ct_vt.v.res;
 
     pure
     size_t opDollar(size_t dim : 0)() const
@@ -72,10 +49,30 @@ scope:
         => activeWidth;
 
     final pure
+    Color[][] allBuffers()
+        => m_allBuffers;
+
+    final pure
+    Color[][] activeLineBuffers()
+        => m_activeLineBuffers;
+
+    final pure
+    Color[] getLine(in size_t y)
+        => m_activeLineBuffers[y];
+
+    final pure
+    Color[] opIndex(in size_t y)
+        => getLine(y);
+
+    final pure
+    ref Color opIndex(in size_t y, in size_t x)
+        => getLine(y)[x ^ 2];
+
+    pure
     void fill(Color color)
     {
-        for (size_t y = 0; y < m_vt.v.res; y++)
-            getLine(y)[] = color;
+        for (size_t y = 0; y < ct_vt.v.res; y++)
+            m_activeLineBuffers[y][] = color;
     }
 
     final pure

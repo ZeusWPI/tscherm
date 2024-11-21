@@ -2,7 +2,7 @@ module app.text_view;
 
 import app.vga.color;
 import app.vga.font : Font;
-import app.vga.framebuffer : FrameBuffer;
+import app.vga.frame_buffer : FrameBuffer;
 
 import idfd.log : Logger;
 

@@ -1,20 +1,17 @@
 module app.main;
 
-import app.text_view : TextView;
 import app.pong.pong : Pong;
 import app.singleton : Singleton;
+import app.text_view : TextView;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
 import app.vga.font : FontMC16x32;
-import app.vga.framebuffer_interrupt.interrupt : FrameBufferInterrupt;
-import app.vga.framebuffer_interrupt.interrupt_drawer : InterruptDrawer;
+import app.vga.frame_buffer.frame_buffer_n_line_buffers : FrameBufferNLineBuffers;
 import app.vga.video_timings;
 
-import idf.esp_common.esp_err : ESP_ERROR_CHECK;
 import idf.esp_rom.lldesc : lldesc_t;
 import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake, vTaskDelay, vTaskSuspend, xTaskCreatePinnedToCore;
 
-import idf.esp_timer : esp_timer_get_time;
 import idfd.log : Logger;
 import idfd.net.wifi_client : WifiClient;
 import idfd.signalio.gpio : GPIOPin;
@@ -22,12 +19,8 @@ import idfd.signalio.i2s : I2SSignalGenerator;
 import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
-import ldc.attributes : section;
-
-import ministd.typecons : UniqueHeap, UniqueHeapArray;
-
-import core.volatile : volatileLoad;
-import idf.soc.i2s_reg : REG_I2S_BASE;
+import ministd.algorithm : min;
+import ministd.typecons : UniqueHeapArray;
 
 @safe:
 
@@ -43,7 +36,7 @@ struct TScherm
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
         enum size_t lineBufferCount = 24;
-        enum size_t drawBatchSize = 4;
+        enum size_t drawBatchSize = 12;
 
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
@@ -64,7 +57,7 @@ struct TScherm
 
     private TaskHandle_t m_loopTask;
 
-    private FrameBufferInterrupt!(Config.vt, Config.lineBufferCount) m_fb;
+    private FrameBufferNLineBuffers!(Config.vt, Config.lineBufferCount) m_fb;
     private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, true) m_i2sSignalGenerator;
     private DMADescriptorRing m_dmaDescriptorRing;
 
@@ -100,7 +93,7 @@ struct TScherm
         })();
 
         log.info!("Initializing FrameBuffer");
-        m_fb.initialize;
+        m_fb = dalloc!(typeof(m_fb));
 
         log.info!"Initializing DMADescriptorRing";
         m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
@@ -166,6 +159,9 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task entrypoint";
 
+        uint lastY = uint.max;
+        uint drawI;
+
         while (true)
         {
             // dfmt off
@@ -178,7 +174,7 @@ struct TScherm
 
             if (m_pongInitialized)
             {
-                m_pong.tickIfReady;
+                // m_pong.tickIfReady;
             }
 
             if (!currDescAddr)
@@ -201,14 +197,26 @@ struct TScherm
 
             assert(currY < Config.vt.v.res);
 
-            foreach (drawY; currY + Config.lineBufferCount / 2 .. currY + 16)
+            if (currY == lastY)
+                continue;
+
+            foreach (drawY; currY + Config.drawBatchSize
+                .. min(currY + Config.drawBatchSize * 2, Config.vt.v.res))
             {
-                drawY %= Config.vt.v.res;
                 Color[] line = m_fb.getLine(drawY);
 
                 if (m_pongInitialized)
                 {
-                    m_pong.drawLine(line, drawY);
+                    // m_pong.drawLine(line, drawY);
+                    for (ushort x = 0; x < Config.vt.h.res*3/4; x++)
+                    {
+                        line[x ^ 2] = Color((drawY + x) % 0x80);
+                        // line[(drawY ^ 2) % Config.vt.h.res] = Color.WHITE;
+                    }
+                    // foreach (size_t x, ref Color c; line)
+                    // {
+                    //     c = Color((drawY + x) % 0x80);
+                    // }
                 }
                 else if (m_fullScreenLogInitialized)
                 {
@@ -219,6 +227,9 @@ struct TScherm
                     line[] = Color.BLACK;
                 }
             }
+
+            lastY = currY;
+            drawI++;
         }
     }
 }

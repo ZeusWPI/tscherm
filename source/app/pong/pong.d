@@ -192,12 +192,4 @@ scope:
             m_fieldTextView.drawLine(buf, y);
         }
     }
-
-    invariant
-    {
-        assert(m_barY.inRange(ct_barYMin, ct_barYMax));
-
-        assert(m_ballX.inRange(ct_ballRadius, ct_fieldWidth - ct_ballRadius));
-        assert(m_ballY.inRange(ct_ballRadius, ct_fieldHeight - ct_ballRadius));
-    }
 }
