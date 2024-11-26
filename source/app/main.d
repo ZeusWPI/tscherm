@@ -35,8 +35,8 @@ struct TScherm
     {
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
-        enum size_t lineBufferCount = 16;
-        enum size_t drawBatchSize = 8;
+        enum size_t lineBufferCount = 8;
+        enum size_t drawBatchSize = 4;
 
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
@@ -103,6 +103,9 @@ struct TScherm
         m_i2sSignalGenerator.initialize(m_loopTask);
 
         log.info!"Setting descriptor eof flags";
+        // Ex. for drawBatchSize 8, will trigger interrupts after reading
+        //   res descriptors 15, 31, ...
+        //   or active descriptors 7, 15, ...
         // dfmt off
         for (
             size_t i = Config.vt.v.resStart + Config.drawBatchSize * 2 - 1;
@@ -189,7 +192,7 @@ struct TScherm
                 continue;
 
             uint currY = (currDescIndex - Config.vt.v.resStart) / 2;
-            uint drawYStart = (currY + Config.drawBatchSize) % Config.vt.v.res;
+            uint drawYStart = (currY + Config.drawBatchSize + 1) % Config.vt.v.res;
             drawYStart -= (drawYStart % Config.drawBatchSize);
 
             foreach (drawY; drawYStart .. min(drawYStart + Config.drawBatchSize, Config.vt.v.res))
@@ -198,16 +201,9 @@ struct TScherm
 
                 if (m_pongInitialized)
                 {
-                    // m_pong.drawLine(line, drawY);
-                    for (ushort x = 0; x < Config.vt.h.res / 2; x++)
-                    {
-                        line[x ^ 2] = Color((drawY + x) % 0x80);
-                        // line[(drawY ^ 2) % Config.vt.h.res] = Color.WHITE;
-                    }
-                    // foreach (size_t x, ref Color c; line)
-                    // {
-                    //     c = Color((drawY + x) % 0x80);
-                    // }
+                    m_pong.drawLine(line, drawY);
+                    // for (ushort x = Config.vt.h.res / 8; x < Config.vt.h.res * 7 / 8; x++)
+                    //     line[x ^ 2] = Color((drawY + x) % 0x80);
                 }
                 else if (m_fullScreenLogInitialized)
                 {

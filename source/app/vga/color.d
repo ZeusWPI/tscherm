@@ -20,6 +20,6 @@ nothrow @nogc:
 const scope:
     auto opBinary(string op)(const Color rhs)
     {
-        return mixin("Color(m_value " ~ op ~ " rhs.m_value)");
+        return mixin("Color(cast(ubyte) (m_value " ~ op ~ " rhs.m_value))");
     }
 }

@@ -20,7 +20,8 @@ struct Pong(uint ct_width, uint ct_height, int ct_pinUp, int ct_pinDown, FontT)
     private enum uint ct_tickPeriodUs = (10 ^^ 6) / 66;
 
     private enum Color ct_backgroundColor = Color.BLACK;
-    private enum Color ct_borderColor = Color(Color.WHITE / 2);
+    private enum Color ct_borderColorMin = Color(Color.WHITE / 8);
+    private enum Color ct_borderColorMax = Color(Color.WHITE);
     private enum Color ct_barColor = Color.WHITE;
     private enum Color ct_ballColor = Color(Color.WHITE / 4 * 3);
 
@@ -160,7 +161,13 @@ scope:
         }
         else
         {
-            buf[] = ct_borderColor;
+            for (int i = 0; i < ct_width; i++)
+            {
+                if (i < ct_width / 2)
+                    buf[i ^ 2] = ct_borderColorMin + Color(cast(ubyte) (ct_borderColorMax * i / ct_width));
+                else
+                    buf[i ^ 2] = ct_borderColorMin + Color(cast(ubyte) (ct_borderColorMax * (ct_width - i) / ct_width));
+            }
         }
     }
 
