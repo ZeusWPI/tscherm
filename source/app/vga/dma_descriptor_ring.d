@@ -13,7 +13,10 @@ nothrow @nogc:
     private lldesc_t[] m_descriptors;
 
 scope:
-    this(in size_t descriptorCount)
+    @disable this();
+    @disable this(ref typeof(this));
+
+    void initialize(in size_t descriptorCount)
     {
         initDescriptors(descriptorCount);
     }

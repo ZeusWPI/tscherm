@@ -239,35 +239,38 @@ scope:
         return signals;
     }
 
-    @section(".iram1")
-    private static @trusted nothrow @nogc extern (C)
-    void handleInterrupt(void* arg)
+    static if (ct_useInterrupt)
     {
-        import core.volatile : volatileLoad, volatileStore;
-        import idf.soc.i2s_reg : I2S_INT_CLR_REG, I2S_INT_RAW_REG, I2S_OUT_EOF_DES_ADDR_REG, I2S_OUT_EOF_INT_RAW;
-
-        enum uint* rawReg = cast(uint*)(I2S_INT_RAW_REG!ct_i2sIndex);
-        enum uint* clrReg = cast(uint*)(I2S_INT_CLR_REG!ct_i2sIndex);
-
-        uint rawFlags = volatileLoad(rawReg);
-        volatileStore(clrReg, (rawFlags & 0xffffffc0) | 0x3f); // Clear interrupt flags
-
-        I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
-
-        if (rawFlags & I2S_OUT_EOF_INT_RAW)
+        @section(".iram1")
+        private static @trusted nothrow @nogc extern (C)
+        void handleInterrupt(void* arg)
         {
-            uint currDescAddr = volatileLoad(cast(uint*) I2S_OUT_EOF_DES_ADDR_REG!ct_i2sIndex);
+            import core.volatile : volatileLoad, volatileStore;
+            import idf.soc.i2s_reg : I2S_INT_CLR_REG, I2S_INT_RAW_REG, I2S_OUT_EOF_DES_ADDR_REG, I2S_OUT_EOF_INT_RAW;
 
-            // dfmt off
-            xTaskGenericNotifyFromISR(
-                xTaskToNotify: instance.m_taskToNotifyOnEofInterrupt,
-                uxIndexToNotify: 0,
-                ulValue: currDescAddr,
-                eAction: eNotifyAction.eSetValueWithOverwrite,
-                pulPreviousNotificationValue: null,
-                pxHigherPriorityTaskWoken: null,
-            );
-            // dfmt on
+            enum uint* rawReg = cast(uint*)(I2S_INT_RAW_REG!ct_i2sIndex);
+            enum uint* clrReg = cast(uint*)(I2S_INT_CLR_REG!ct_i2sIndex);
+
+            uint rawFlags = volatileLoad(rawReg);
+            volatileStore(clrReg, (rawFlags & 0xffffffc0) | 0x3f); // Clear interrupt flags
+
+            I2SSignalGenerator* instance = cast(I2SSignalGenerator*) arg;
+
+            if (rawFlags & I2S_OUT_EOF_INT_RAW)
+            {
+                uint currDescAddr = volatileLoad(cast(uint*) I2S_OUT_EOF_DES_ADDR_REG!ct_i2sIndex);
+
+                // dfmt off
+                xTaskGenericNotifyFromISR(
+                    xTaskToNotify: instance.m_taskToNotifyOnEofInterrupt,
+                    uxIndexToNotify: 0,
+                    ulValue: currDescAddr,
+                    eAction: eNotifyAction.eSetValueWithOverwrite,
+                    pulPreviousNotificationValue: null,
+                    pxHigherPriorityTaskWoken: null,
+                );
+                // dfmt on
+            }
         }
     }
 }

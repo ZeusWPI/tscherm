@@ -20,16 +20,13 @@ import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
 import ministd.algorithm : min;
-import ministd.typecons : UniqueHeapArray;
+import ministd.typecons : UniqueHeapArray, UniqueHeap;
 
 @safe:
 
 struct TScherm
 {
     enum log = Logger!"TScherm"();
-
-    // Provides `createInstance` and `instance`
-    mixin Singleton;
 
     struct Config
     {
@@ -51,14 +48,22 @@ struct TScherm
         enum string wifiSsid = "Zeus WPI";
         enum string wifiPassword = "zeusisdemax";
 
+        enum int coreCount = 2;
+
+        alias FrameBufferT = FrameBufferNLineBuffers!(vt, lineBufferCount);
+
         static assert(lineBufferCount % drawBatchSize == 0);
         static assert(drawBatchSize <= lineBufferCount / 2);
+        static assert(0 < coreCount && coreCount <= 2);
     }
 
-    private TaskHandle_t m_loopTask;
+    private __gshared bool s_instanceInitialized;
+    private __gshared TScherm s_instance;
 
-    private FrameBufferNLineBuffers!(Config.vt, Config.lineBufferCount) m_fb;
-    private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, true) m_i2sSignalGenerator;
+    private TaskHandle_t[Config.coreCount] m_loopTasks;
+
+    private UniqueHeap!(Config.FrameBufferT) m_fb;
+    private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, false) m_i2sSignalGenerator;
     private DMADescriptorRing m_dmaDescriptorRing;
 
     private Config.FontT m_font;
@@ -70,37 +75,54 @@ struct TScherm
     private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown, Config.FontT) m_pong;
     private bool m_pongInitialized;
 
+    static @trusted
+    void createInstance()
+    in (!s_instanceInitialized)
+    {
+        s_instanceInitialized = true;
+        s_instance.initialize;
+    }
+
+    static @trusted nothrow @nogc
+    ref TScherm instance()
+    in (s_instanceInitialized)
+        => s_instance;
+
     @disable this();
     @disable this(ref typeof(this));
 
     private
     void initialize()
     {
-        log.info!"Creating loop task";
-        (() @trusted {
-            // dfmt off
-            auto result = xTaskCreatePinnedToCore(
+        log.info!"Creating loop tasks";
+        // dfmt off
+        static foreach (int core; 0 .. Config.coreCount)
+        {{
+            enum string name = core == 0 ? "loop_0" : "loop_1";
+            (() @trusted {
+                auto result = xTaskCreatePinnedToCore(
                     pvTaskCode: &TScherm.loopTaskEntrypoint,
-                    pcName: "loop",
+                    pcName: name,
                     usStackDepth: 4000,
                     pvParameters: null,
                     uxPriority: 10,
-                    pvCreatedTask: &m_loopTask,
-                    xCoreID: 1,
-            );
-            assert(result == pdPASS);
-            // dfmt on
-        })();
+                    pvCreatedTask: &m_loopTasks[core],
+                    xCoreID: core,
+                );
+                assert(result == pdPASS);
+            })();
+        }}
+        // dfmt on
 
-        log.info!("Initializing FrameBuffer");
-        m_fb = dalloc!(typeof(m_fb));
+        log.info!"Initializing FrameBuffer";
+        m_fb = typeof(m_fb).create;
 
         log.info!"Initializing DMADescriptorRing";
-        m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
+        m_dmaDescriptorRing.initialize(m_fb.allBuffers.length);
         m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.allBuffers)());
 
         log.info!"Initializing I2SSignalGenerator";
-        m_i2sSignalGenerator.initialize(m_loopTask);
+        m_i2sSignalGenerator.initialize();
 
         log.info!"Setting descriptor eof flags";
         // Ex. for drawBatchSize 8, will trigger interrupts after reading
