@@ -239,6 +239,11 @@ scope:
         return signals;
     }
 
+    uint currDescAddr()
+    {
+        return m_i2sDev.out_link_dscr;
+    }
+
     static if (ct_useInterrupt)
     {
         @section(".iram1")

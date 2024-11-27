@@ -20,7 +20,7 @@ import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
 import ministd.algorithm : min;
-import ministd.typecons : UniqueHeapArray, UniqueHeap;
+import ministd.typecons : UniqueHeap, UniqueHeapArray;
 
 @safe:
 
@@ -57,10 +57,14 @@ struct TScherm
         static assert(0 < coreCount && coreCount <= 2);
     }
 
+    private
+    struct LoopTaskArg
+    {
+        int core;
+    }
+
     private __gshared bool s_instanceInitialized;
     private __gshared TScherm s_instance;
-
-    private TaskHandle_t[Config.coreCount] m_loopTasks;
 
     private UniqueHeap!(Config.FrameBufferT) m_fb;
     private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, false) m_i2sSignalGenerator;
@@ -74,6 +78,9 @@ struct TScherm
 
     private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown, Config.FontT) m_pong;
     private bool m_pongInitialized;
+
+    private LoopTaskArg[Config.coreCount] m_loopTaskArgs;
+    private TaskHandle_t[Config.coreCount] m_loopTasks;
 
     static @trusted
     void createInstance()
@@ -94,26 +101,6 @@ struct TScherm
     private
     void initialize()
     {
-        log.info!"Creating loop tasks";
-        // dfmt off
-        static foreach (int core; 0 .. Config.coreCount)
-        {{
-            enum string name = core == 0 ? "loop_0" : "loop_1";
-            (() @trusted {
-                auto result = xTaskCreatePinnedToCore(
-                    pvTaskCode: &TScherm.loopTaskEntrypoint,
-                    pcName: name,
-                    usStackDepth: 4000,
-                    pvParameters: null,
-                    uxPriority: 10,
-                    pvCreatedTask: &m_loopTasks[core],
-                    xCoreID: core,
-                );
-                assert(result == pdPASS);
-            })();
-        }}
-        // dfmt on
-
         log.info!"Initializing FrameBuffer";
         m_fb = typeof(m_fb).create;
 
@@ -155,77 +142,91 @@ struct TScherm
         (() @trusted => m_fullScreenLog.initialize(&m_font))();
         m_fullScreenLogInitialized = true;
 
-        // log.info!"Initializing WifiClient (async)";
-        // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
-        // m_wifiClient.startAsync;
+        log.info!"Initializing WifiClient (async)";
+        m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
+        m_wifiClient.startAsync;
 
-        // log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        // m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        // m_wifiClient.waitForConnection;
+        log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        m_wifiClient.waitForConnection;
 
-        // log.info!("Connected to " ~ Config.wifiSsid ~ "!");
-        // m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
-        // vTaskDelay(500);
+        log.info!("Connected to " ~ Config.wifiSsid ~ "!");
+        m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
+        vTaskDelay(500);
+
+        log.info!"Creating loop tasks";
+        // dfmt off
+        static foreach (int core; 0 .. Config.coreCount)
+        {{
+            enum string name = core == 0 ? "loop_0" : "loop_1";
+            m_loopTaskArgs[core].core = core;
+            (() @trusted {
+                auto result = xTaskCreatePinnedToCore(
+                    pvTaskCode: &TScherm.loopTaskEntrypoint,
+                    pcName: name,
+                    usStackDepth: 4000,
+                    pvParameters: &m_loopTaskArgs[core],
+                    uxPriority: 10,
+                    pvCreatedTask: &m_loopTasks[core],
+                    xCoreID: core,
+                );
+                assert(result == pdPASS);
+            })();
+        }}
+        // dfmt on
 
         log.info!"Starting Pong";
         m_fullScreenLog.writeln("Starting Pong");
-        vTaskDelay(500);
+        vTaskDelay(2000);
         (() @trusted => m_pong.initialize(&m_font))();
         m_pongInitialized = true;
     }
 
     private static @trusted extern (C)
-    void loopTaskEntrypoint(void* ignore)
-        => TScherm.instance.loop;
+    void loopTaskEntrypoint(void* loopTaskArgVoidPtr)
+        => TScherm.instance.loop(cast(LoopTaskArg*) loopTaskArgVoidPtr);
 
     private @trusted
-    void loop()
+    void loop(LoopTaskArg* loopTaskArg)
     {
-        // The first log from this task seems to take 0.5ms extra, so get it out of the way
-        log.info!"Loop task entrypoint";
+        log.info!"Loop task %d entrypoint"(loopTaskArg.core);
 
-        uint drawI;
+        const size_t firstDescAddr = cast(size_t) m_dmaDescriptorRing.firstDescriptor;
+        uint lastDrawYStart;
 
         while (true)
         {
-            // dfmt off
-            const size_t currDescAddr = ulTaskGenericNotifyTake(
-                uxIndexToWaitOn: 0,
-                xClearCountOnExit: true,
-                xTicksToWait: 10,
-            );
-            // dfmt on
-
             if (m_pongInitialized)
             {
                 // m_pong.tickIfReady;
             }
 
-            if (!currDescAddr)
-                continue;
+            const uint currDescAddr = m_i2sSignalGenerator.currDescAddr;
 
-            const size_t firstDescAddr = cast(size_t) m_dmaDescriptorRing.firstDescriptor;
-
-            assert(currDescAddr >= firstDescAddr);
-            assert((currDescAddr - firstDescAddr) % lldesc_t.sizeof == 0);
             const size_t currDescIndex = (currDescAddr - firstDescAddr) / lldesc_t.sizeof;
 
             if (!(Config.vt.v.resStart <= currDescIndex && currDescIndex < Config.vt.v.resStart + Config.vt.v.res * 2))
                 continue;
+            const uint currY = (currDescIndex - Config.vt.v.resStart) / 2;
 
-            uint currY = (currDescIndex - Config.vt.v.resStart) / 2;
             uint drawYStart = (currY + Config.drawBatchSize + 1) % Config.vt.v.res;
             drawYStart -= (drawYStart % Config.drawBatchSize);
 
+            if (drawYStart == lastDrawYStart)
+                continue;
+
             foreach (drawY; drawYStart .. min(drawYStart + Config.drawBatchSize, Config.vt.v.res))
             {
+                if (drawY % Config.coreCount != loopTaskArg.core)
+                    continue;
+
                 Color[] line = m_fb.getLine(drawY);
 
                 if (m_pongInitialized)
                 {
-                    m_pong.drawLine(line, drawY);
-                    // for (ushort x = Config.vt.h.res / 8; x < Config.vt.h.res * 7 / 8; x++)
-                    //     line[x ^ 2] = Color((drawY + x) % 0x80);
+                    // m_pong.drawLine(line, drawY);
+                    for (ushort x = Config.vt.h.res; x < Config.vt.h.res; x++)
+                        line[x ^ 2] = Color((drawY + x) % 0x80);
                 }
                 else if (m_fullScreenLogInitialized)
                 {
@@ -237,7 +238,7 @@ struct TScherm
                 }
             }
 
-            drawI++;
+            lastDrawYStart = drawYStart;
         }
     }
 }
