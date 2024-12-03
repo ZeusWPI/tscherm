@@ -1,7 +1,6 @@
 module app.main;
 
 import app.pong.pong : Pong;
-import app.singleton : Singleton;
 import app.text_view : TextView;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
@@ -20,16 +19,13 @@ import idfd.signalio.router : route;
 import idfd.signalio.signal : Signal;
 
 import ministd.algorithm : min;
-import ministd.typecons : UniqueHeapArray;
+import ministd.typecons : UniqueHeap, UniqueHeapArray;
 
 @safe:
 
 struct TScherm
 {
     enum log = Logger!"TScherm"();
-
-    // Provides `createInstance` and `instance`
-    mixin Singleton;
 
     struct Config
     {
@@ -51,13 +47,18 @@ struct TScherm
         enum string wifiSsid = "Zeus WPI";
         enum string wifiPassword = "zeusisdemax";
 
+        alias FrameBufferT = FrameBufferNLineBuffers!(vt, lineBufferCount);
+
         static assert(lineBufferCount % drawBatchSize == 0);
         static assert(drawBatchSize <= lineBufferCount / 2);
     }
 
+    private __gshared bool s_instanceInitialized;
+    private __gshared TScherm s_instance;
+
     private TaskHandle_t m_loopTask;
 
-    private FrameBufferNLineBuffers!(Config.vt, Config.lineBufferCount) m_fb;
+    private UniqueHeap!(Config.FrameBufferT) m_fb;
     private I2SSignalGenerator!(Config.i2sIndex, Config.bitCount, Config.vt.pixelClock, true) m_i2sSignalGenerator;
     private DMADescriptorRing m_dmaDescriptorRing;
 
@@ -69,6 +70,19 @@ struct TScherm
 
     private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown, Config.FontT) m_pong;
     private bool m_pongInitialized;
+
+    static @trusted
+    void createInstance()
+    in (!s_instanceInitialized)
+    {
+        s_instanceInitialized = true;
+        s_instance.initialize;
+    }
+
+    static @trusted nothrow @nogc
+    ref TScherm instance()
+    in (s_instanceInitialized)
+        => s_instance;
 
     @disable this();
     @disable this(ref typeof(this));
@@ -93,14 +107,11 @@ struct TScherm
         })();
 
         log.info!("Initializing FrameBuffer");
-        m_fb = dalloc!(typeof(m_fb));
+        m_fb = typeof(m_fb).create;
 
         log.info!"Initializing DMADescriptorRing";
         m_dmaDescriptorRing = DMADescriptorRing(m_fb.allBuffers.length);
         m_dmaDescriptorRing.setBuffers((() @trusted => cast(ubyte[][]) m_fb.allBuffers)());
-
-        log.info!"Initializing I2SSignalGenerator";
-        m_i2sSignalGenerator.initialize(m_loopTask);
 
         log.info!"Setting descriptor eof flags";
         // Ex. for drawBatchSize 8, will trigger interrupts after reading
@@ -114,6 +125,9 @@ struct TScherm
         )
             m_dmaDescriptorRing.descriptors[i].eof = 1;
         // dfmt on
+
+        log.info!"Initializing I2SSignalGenerator";
+        m_i2sSignalGenerator.initialize(m_loopTask);
 
         // dfmt off
         log.info!"Routing GPIO signals";
@@ -133,17 +147,17 @@ struct TScherm
         (() @trusted => m_fullScreenLog.initialize(&m_font))();
         m_fullScreenLogInitialized = true;
 
-        // log.info!"Initializing WifiClient (async)";
-        // m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
-        // m_wifiClient.startAsync;
+        log.info!"Initializing WifiClient (async)";
+        m_wifiClient = WifiClient(Config.wifiSsid, Config.wifiPassword);
+        m_wifiClient.startAsync;
 
-        // log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        // m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
-        // m_wifiClient.waitForConnection;
+        log.info!("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        m_fullScreenLog.writeln("Connecting to AP with ssid: " ~ Config.wifiSsid);
+        m_wifiClient.waitForConnection;
 
-        // log.info!("Connected to " ~ Config.wifiSsid ~ "!");
-        // m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
-        // vTaskDelay(500);
+        log.info!("Connected to " ~ Config.wifiSsid ~ "!");
+        m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
+        vTaskDelay(500);
 
         log.info!"Starting Pong";
         m_fullScreenLog.writeln("Starting Pong");
@@ -162,8 +176,6 @@ struct TScherm
         // The first log from this task seems to take 0.5ms extra, so get it out of the way
         log.info!"Loop task entrypoint";
 
-        uint drawI;
-
         while (true)
         {
             // dfmt off
@@ -176,7 +188,7 @@ struct TScherm
 
             if (m_pongInitialized)
             {
-                // m_pong.tickIfReady;
+                m_pong.tickIfReady;
             }
 
             if (!currDescAddr)
@@ -202,8 +214,6 @@ struct TScherm
                 if (m_pongInitialized)
                 {
                     m_pong.drawLine(line, drawY);
-                    // for (ushort x = Config.vt.h.res / 8; x < Config.vt.h.res * 7 / 8; x++)
-                    //     line[x ^ 2] = Color((drawY + x) % 0x80);
                 }
                 else if (m_fullScreenLogInitialized)
                 {
@@ -214,8 +224,6 @@ struct TScherm
                     line[] = Color.BLACK;
                 }
             }
-
-            drawI++;
         }
     }
 }
