@@ -1,6 +1,5 @@
 module app.main;
 
-import app.pong.pong : Pong;
 import app.text_view : TextView;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
@@ -67,9 +66,6 @@ struct TScherm
     private bool m_fullScreenLogInitialized;
 
     private WifiClient m_wifiClient;
-
-    private Pong!(Config.vt.h.res, Config.vt.v.res, Config.pinUp, Config.pinDown, Config.FontT) m_pong;
-    private bool m_pongInitialized;
 
     static @trusted
     void createInstance()
@@ -158,12 +154,6 @@ struct TScherm
         log.info!("Connected to " ~ Config.wifiSsid ~ "!");
         m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
         vTaskDelay(500);
-
-        log.info!"Starting Pong";
-        m_fullScreenLog.writeln("Starting Pong");
-        vTaskDelay(500);
-        (() @trusted => m_pong.initialize(&m_font))();
-        m_pongInitialized = true;
     }
 
     private static @trusted extern (C)
@@ -186,11 +176,6 @@ struct TScherm
             );
             // dfmt on
 
-            if (m_pongInitialized)
-            {
-                m_pong.tickIfReady;
-            }
-
             if (!currDescAddr)
                 continue;
 
@@ -211,11 +196,7 @@ struct TScherm
             {
                 Color[] line = m_fb.getLine(drawY);
 
-                if (m_pongInitialized)
-                {
-                    m_pong.drawLine(line, drawY);
-                }
-                else if (m_fullScreenLogInitialized)
+                if (m_fullScreenLogInitialized)
                 {
                     m_fullScreenLog.drawLine(line, drawY);
                 }
