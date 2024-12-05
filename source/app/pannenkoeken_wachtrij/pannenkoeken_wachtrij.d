@@ -2,11 +2,14 @@ module app.pannenkoeken_wachtrij.pannenkoeken_wachtrij;
 
 import app.vga.color : Color;
 import app.vga.font : Font;
+import app.pannenkoeken_wachtrij.http : HttpServer;
 
 import idfd.log : Logger;
 
 import ministd.traits : isInstanceOf;
 import ministd.typecons : UniqueHeapArray;
+
+@safe nothrow @nogc:
 
 final
 class PannenkoekenWachtrij(uint ct_width, uint ct_height, FontT) //
@@ -18,29 +21,36 @@ if (isInstanceOf!(Font, FontT))
     private UniqueHeapArray!(UniqueHeapArray!char) m_entries;
     private uint m_entryCount;
 
+    private HttpServer m_httpServer;
+
+nothrow @nogc:
     this(const(FontT)* font)
     {
         m_font = font;
         m_entries = typeof(m_entries).create(64);
+        m_httpServer = HttpServer(80);
+        m_httpServer.start;
     }
 
-    void addEntry(string name)
+    int addEntry(string name)
     {
         if (m_entryCount >= m_entries.length)
-            return;
+            return -1;
         
         m_entries[m_entryCount] = UniqueHeapArray!char.create(name.length);
         m_entries[m_entryCount][] = name[];
         m_entryCount++;
+        return m_entryCount;
     }
 
-    void addEntry(UniqueHeapArray!char name)
+    int addEntry(UniqueHeapArray!char name)
     {
         if (m_entryCount >= m_entries.length)
-            return;
+            return -1;
         
         m_entries[m_entryCount] = name;
         m_entryCount++;
+        return m_entryCount;
     }
 
     void drawLine(Color[] buf, const uint y) const
@@ -57,7 +67,7 @@ if (isInstanceOf!(Font, FontT))
         enum uint ct_glyphWidth = FontT.ct_glyphWidth;
         enum uint ct_glyphHeight = FontT.ct_glyphHeight;
         enum Color ct_backgroundColor = Color.BLACK;
-        enum string ct_text = "Geen bestellingen"; 
+        enum string ct_text = "De pannenkoekenwachtrij is leeg"; 
         static assert(ct_text.length * ct_glyphWidth <= ct_width);
 
         enum uint yTextStart = (ct_height - ct_glyphHeight) / 2;
