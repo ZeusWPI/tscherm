@@ -1,6 +1,6 @@
 module app.text_view;
 
-import app.vga.color;
+import app.vga.color : Color;
 import app.vga.font : Font;
 import app.vga.frame_buffer : FrameBuffer;
 

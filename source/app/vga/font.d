@@ -59,6 +59,20 @@ const pragma(inline, true):
 
         return m_image[begin .. end];
     }
+
+    void drawTextLine(scope Color[] buf, const uint y, scope const char[] text)
+    {
+        uint xBegin, xEnd;
+        foreach (char c; text)
+        {
+            xEnd = xBegin + ct_glyphWidth;
+            if (xEnd > buf.length)
+                return;
+            buf[xBegin .. xEnd] = getGlyphLine(c, y);
+            xBegin = xEnd;
+        }
+        buf[xEnd .. buf.length] = Color.BLACK;
+    }
 }
 
 private enum immutable(Color[]) readImage(string importPath) = () {

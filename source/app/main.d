@@ -1,5 +1,6 @@
 module app.main;
 
+import app.pannenkoeken_wachtrij.pannenkoeken_wachtrij : PannenkoekenWachtrij;
 import app.text_view : TextView;
 import app.vga.color : Color;
 import app.vga.dma_descriptor_ring : DMADescriptorRing;
@@ -30,16 +31,14 @@ struct TScherm
     {
         enum VideoTimings vt = VIDEO_TIMINGS_640W_480H_MAC;
 
-        enum size_t lineBufferCount = 8;
-        enum size_t drawBatchSize = 4;
+        enum size_t lineBufferCount = 32;
+        enum size_t drawBatchSize = 16;
 
         enum uint i2sIndex = 1;
         enum uint bitCount = 8;
 
         enum int[] colorPins = [12, 14, 27, 26, 25, 33, 32];
         enum int cSyncPin = 13;
-        enum int pinUp = 22;
-        enum int pinDown = 23;
 
         alias FontT = FontMC16x32;
 
@@ -47,6 +46,7 @@ struct TScherm
         enum string wifiPassword = "zeusisdemax";
 
         alias FrameBufferT = FrameBufferNLineBuffers!(vt, lineBufferCount);
+        alias PannenkoekenWachtrijT = PannenkoekenWachtrij!(Config.vt.h.res, Config.vt.v.res, FontT);
 
         static assert(lineBufferCount % drawBatchSize == 0);
         static assert(drawBatchSize <= lineBufferCount / 2);
@@ -66,6 +66,9 @@ struct TScherm
     private bool m_fullScreenLogInitialized;
 
     private WifiClient m_wifiClient;
+
+    private UniqueHeap!(Config.PannenkoekenWachtrijT) m_pannenkoekenWachtrij;
+    private bool m_pannenkoekenWachtrijInitialized;
 
     static @trusted
     void createInstance()
@@ -90,13 +93,13 @@ struct TScherm
         (() @trusted {
             // dfmt off
             auto result = xTaskCreatePinnedToCore(
-                    pvTaskCode: &TScherm.loopTaskEntrypoint,
-                    pcName: "loop",
-                    usStackDepth: 4000,
-                    pvParameters: null,
-                    uxPriority: 10,
-                    pvCreatedTask: &m_loopTask,
-                    xCoreID: 1,
+                pvTaskCode: &TScherm.loopTaskEntrypoint,
+                pcName: "loop",
+                usStackDepth: 4000,
+                pvParameters: null,
+                uxPriority: 10,
+                pvCreatedTask: &m_loopTask,
+                xCoreID: 1,
             );
             assert(result == pdPASS);
             // dfmt on
@@ -154,6 +157,19 @@ struct TScherm
         log.info!("Connected to " ~ Config.wifiSsid ~ "!");
         m_fullScreenLog.writeln("Connected to " ~ Config.wifiSsid ~ "!");
         vTaskDelay(500);
+
+        log.info!"Starting PannenkoekenWachtrij";
+        m_fullScreenLog.writeln("Starting PannenkoekenWachtrij");
+        vTaskDelay(500);
+        m_pannenkoekenWachtrij = (() @trusted => typeof(m_pannenkoekenWachtrij).create(&m_font))();
+        m_pannenkoekenWachtrijInitialized = true;
+
+        vTaskDelay(2000);
+        m_pannenkoekenWachtrij.addEntry("1 - name1");
+        vTaskDelay(500);
+        m_pannenkoekenWachtrij.addEntry("3 - name2");
+        vTaskDelay(500);
+        m_pannenkoekenWachtrij.addEntry("9 - veryverylongname");
     }
 
     private static @trusted extern (C)
@@ -196,7 +212,11 @@ struct TScherm
             {
                 Color[] line = m_fb.getLine(drawY);
 
-                if (m_fullScreenLogInitialized)
+                if (m_pannenkoekenWachtrijInitialized)
+                {
+                    m_pannenkoekenWachtrij.drawLine(line, drawY);
+                }
+                else if (m_fullScreenLogInitialized)
                 {
                     m_fullScreenLog.drawLine(line, drawY);
                 }
