@@ -1,15 +1,15 @@
 module app.pannenkoeken_wachtrij.pannenkoeken_wachtrij;
 
+import app.pannenkoeken_wachtrij.http : HttpServer, Request, Response, Route;
 import app.vga.color : Color;
 import app.vga.font : Font;
-import app.pannenkoeken_wachtrij.http : HttpServer;
 
 import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake, vTaskDelay, vTaskSuspend, xTaskCreatePinnedToCore;
 
 import idfd.log : Logger;
 
 import ministd.traits : isInstanceOf;
-import ministd.typecons : UniqueHeapArray;
+import ministd.typecons : UniqueHeap, UniqueHeapArray;
 
 @safe nothrow @nogc:
 
@@ -17,14 +17,20 @@ final
 class PannenkoekenWachtrij(uint ct_width, uint ct_height, FontT) //
 if (isInstanceOf!(Font, FontT))
 {
-    enum log = Logger!"PannenkoekenWachtrij"();
+    private enum log = Logger!"PannenkoekenWachtrij"();
+    private enum Route ct_httpGetRoute = Route("GET", "/");
+    private enum Route ct_httpPostRoute = Route("POST", "/");
+    private enum Route[] ct_httpRoutes = [
+        ct_httpGetRoute,
+        ct_httpPostRoute,
+    ];
 
     private const(FontT)* m_font;
     private UniqueHeapArray!(UniqueHeapArray!char) m_entries;
     private uint m_entryCount;
 
     private TaskHandle_t m_httpServerTask;
-    private HttpServer!(typeof(this)) m_httpServer;
+    private UniqueHeap!(HttpServer!ct_httpRoutes) m_httpServer;
 
 nothrow @nogc:
     this(const(FontT)* font)
@@ -55,8 +61,19 @@ nothrow @nogc:
     private
     void httpServerTask()
     {
-        m_httpServer = typeof(m_httpServer)(80, this);
+        m_httpServer = typeof(m_httpServer).create(cast(ushort) 80);
+        m_httpServer.setRouteHandler!ct_httpGetRoute(&onGet);
+        m_httpServer.setRouteHandler!ct_httpPostRoute(&onPost);
         m_httpServer.start;
+    }
+
+    void onGet(ref Request req, ref Response res)
+    {
+    }
+
+    void onPost(ref Request req, ref Response res)
+    {
+        addEntry(UniqueHeapArray!char(req.body));
     }
 
     int addEntry(UniqueHeapArray!char name)

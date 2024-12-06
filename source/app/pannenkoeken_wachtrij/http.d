@@ -1,39 +1,65 @@
 module app.pannenkoeken_wachtrij.http;
 
-import app.pannenkoeken_wachtrij.pannenkoeken_wachtrij : PannenkoekenWachtrij;
-
 import idf.errno : EAGAIN, errno;
 import idf.esp_timer : esp_timer_get_time;
+import idf.freertos : vTaskDelay;
 import idf.stdlib : atoi;
 import idf.sys.socket : accept, AF_INET, bind, close, connect, htonl, htons, IPADDR_ANY, IPPROTO_IP, listen,
     MSG_DONTWAIT, recv, send, shutdown, SOCK_STREAM, sockaddr, sockaddr_in, socket, socklen_t;
 
-import idf.freertos : vTaskDelay;
-
 import idfd.log : Logger;
 
+import ministd.conv : to;
 import ministd.string : startsWith;
-import ministd.traits : isInstanceOf;
 import ministd.typecons : UniqueHeapArray;
 
 @safe nothrow @nogc:
 
-struct HttpServer(PannenkoekenWachtrijT) //
-if (isInstanceOf!(PannenkoekenWachtrij, PannenkoekenWachtrijT))
+struct Route
+{
+    string method;
+    string path;
+}
+
+struct Request
+{
+    UniqueHeapArray!char body;
+}
+
+struct Response
+{
+    uint status;
+}
+
+alias RouteHandler = void delegate(ref Request req, ref Response res) @safe nothrow @nogc;
+
+class HttpServer(Route[] ct_routes) //
 {
     private enum log = Logger!"HttpServer"();
 
+    private enum size_t routeIndex(Route ct_route) = () {
+        static foreach (i, el; ct_routes)
+            static if (ct_route == el)
+                enum idx = i;
+        static assert(is(typeof(idx)), "routeIndex: no such route");
+        return idx;
+    }();
+
     private ushort m_port;
-    private int m_listenSocket;
     private long m_recvTimeoutUsecs;
-    private PannenkoekenWachtrijT m_pannenkoekenWachtrij;
+    private RouteHandler[ct_routes.length] m_routeHandlers;
+    private int m_listenSocket;
 
 scope nothrow @nogc:
-    this(ushort port, PannenkoekenWachtrijT pannenkoekenWachtrij, long recvTimeoutUsecs = 2_000_000)
+    this(ushort port, long recvTimeoutUsecs = 2_000_000)
     {
         m_port = port;
-        m_pannenkoekenWachtrij = pannenkoekenWachtrij;
         m_recvTimeoutUsecs = recvTimeoutUsecs;
+    }
+
+    void setRouteHandler(Route ct_route)(RouteHandler routeHandler)
+    {
+        m_routeHandlers[routeIndex!ct_route] = routeHandler;
     }
 
     @trusted
@@ -63,29 +89,21 @@ scope nothrow @nogc:
         {
             sockaddr_in sourceAddr;
             socklen_t sourceAddrSize = sourceAddr.sizeof;
-            // log.info!"calling accept()";
             int socket = accept(m_listenSocket, cast(sockaddr*)&sourceAddr, &sourceAddrSize);
-            // log.info!"incoming connection!";
             assert(socket >= 0);
 
-            handleOurOnlyClient(socket);
+            handleIncomingConnection(socket);
 
-            // log.info!"closing connection socket";
             shutdown(socket, 0);
             close(socket);
-            // log.info!"socket closed";
 
             vTaskDelay(10);
         }
     }
 
-    void handleOurOnlyClient(int socket)
+    void handleIncomingConnection(int socket)
     {
-        log.info!"handleOurOnlyClient: Started";
-        scope (exit)
-            log.info!"handleOurOnlyClient: Exited";
-
-        auto r = SocketReader!char(socket, m_recvTimeoutUsecs);
+        auto socketReader = SocketReader!char(socket, m_recvTimeoutUsecs);
 
         @trusted
         void socketSend(C)(C[] data)
@@ -104,10 +122,32 @@ scope nothrow @nogc:
             }
         }
 
+        void sendStatus(uint status)
+        {
+            UniqueHeapArray!char statusStr = status.to!(char[]);
+            socketSend("HTTP/1.1 ");
+            socketSend(statusStr);
+            socketSend("\r\n\r\n");
+        }
+
+        void send400()
+        {
+            socketSend("HTTP/1.1 400 Bad Request\r\n\r\n");
+        }
+
+        void send404()
+        {
+            socketSend(
+                "HTTP/1.1 404 Not Found\r\n" ~
+                    "Content-Type: text/plain\r\n" ~
+                    "Content-Length: 13\r\n" ~
+                    "\r\n" ~
+                    "404 Not Found"
+            );
+        }
+
         void send408()
         {
-            log.warn!"handleOurOnlyClient: Client took too long to send";
-            log.warn!"handleOurOnlyClient: Sending 408";
             socketSend(
                 "HTTP/1.1 408 Request Timeout\r\n" ~
                     "Content-Type: text/plain\r\n" ~
@@ -117,111 +157,104 @@ scope nothrow @nogc:
             );
         }
 
-        auto firstLineBuf = UniqueHeapArray!char.create(64);
-        char[] firstLine = r.readLine(firstLineBuf.get);
-
-        if (r.timedOut)
+        RouteHandler routeHandler;
         {
-            send408;
-            return;
-        }
-        else if (firstLine.startsWith("GET /hello HTTP"))
-        {
-            log.info!"handleOurOnlyClient: Handling GET /hello";
-            socketSend(
-                "HTTP/1.1 200 OK\r\n" ~
-                    "Content-Type: text/plain\r\n" ~
-                    "Content-Length: 6\r\n" ~
-                    "\r\n" ~
-                    "Hello!"
-            );
-        }
-        else if (firstLine.startsWith("POST / HTTP"))
-        {
-            log.info!"handleOurOnlyClient: Handling POST /";
-
-            int contentLength = -1;
+            auto firstLineBuf = UniqueHeapArray!char.create(64);
+            char[] firstLine = socketReader.readLine(firstLineBuf.get);
+            if (socketReader.timedOut)
             {
-                auto headerLineBuf = UniqueHeapArray!char.create(256);
-                while (true)
-                {
-                    char[] line = r.readLine(headerLineBuf.get);
-                    if (line.length == 0)
-                    {
-                        if (r.timedOut)
-                            send408;
-                        return;
-                    }
-                    else if (line == "\r\n" || line == "\n")
-                        break;
-                    else if (line.startsWith("Content-Length: ")
-                        || line.startsWith("content-length: "))
-                    {
-                        bool crlf = line[$ - 2 .. $] == "\r\n";
-                        char[] numberString = line["Content-Length: ".length .. $ - (crlf ? 2 : 1)];
-                        if (numberString.length > 3)
-                        {
-                            log.warn!"handleOurOnlyClient: Message too long, sending 400";
-                            socketSend(
-                                "HTTP/1.1 400 Bad Request\r\n" ~
-                                    "Content-Type: text/plain\r\n" ~
-                                    "Content-Length: 16\r\n" ~
-                                    "\r\n" ~
-                                    "Message too long"
-                            );
-                            return;
-                        }
-                        else if (numberString.length >= 1)
-                        {
-                            char[4] numberStringz;
-                            numberStringz[0 .. numberString.length] = numberString;
-                            (() @trusted => contentLength = atoi(&numberStringz[0]))();
-                        }
-                    }
-                }
-            }
-            if (contentLength < 0)
-            {
-                log.warn!"handleOurOnlyClient: No Content-Length found, sending 400";
-                socketSend("HTTP/1.1 400 Bad Request\r\n\r\n");
+                send408;
                 return;
             }
 
-            auto bodyBuf = UniqueHeapArray!char.create(1024);
-            char[] body;
-            while (body.length != contentLength) // contentLength is max 999
-            {
-                if (r.empty)
+            // dfmt off
+            bool foundRoute;
+            size_t routeIdx;
+            static foreach (i, enum Route route; ct_routes)
+            {{
+                enum string routeFirstLine = route.method ~ " " ~ route.path ~ " HTTP";
+                if (!foundRoute && firstLine.startsWith(routeFirstLine))
                 {
-                    log.warn!"handleOurOnlyClient: Body smaller than Content-Length, sending 400";
-                    socketSend("HTTP/1.1 400 Bad Request\r\n\r\n");
-                    return;
+                    foundRoute = true;
+                    routeIdx = i;
                 }
-                bodyBuf.get[body.length] = r.front;
-                body = bodyBuf[0 .. body.length + 1];
-                r.popFront;
+            }}
+            // dfmt on
+            if (!foundRoute)
+            {
+                send404;
+                return;
             }
 
-            bodyBuf[body.length] = 0;
-            log.info!"handleOurOnlyClient: Got body %s"(&body[0]);
-
-            auto entry = UniqueHeapArray!char.create(body.length);
-            entry[] = body[];
-            m_pannenkoekenWachtrij.addEntry(entry);
-
-            socketSend("HTTP/1.1 204 No Content\r\n\r\n");
+            routeHandler = m_routeHandlers[routeIdx];
+            if (routeHandler is null)
+            {
+                send404;
+                return;
+            }
         }
-        else
+
+        int contentLength = -1;
         {
-            log.warn!"handleOurOnlyClient: Sending 404";
-            socketSend(
-                "HTTP/1.1 404 Not Found\r\n" ~
-                    "Content-Type: text/plain\r\n" ~
-                    "Content-Length: 13\r\n" ~
-                    "\r\n" ~
-                    "404 Not Found"
-            );
+            auto headerLineBuf = UniqueHeapArray!char.create(256);
+            while (true)
+            {
+                char[] line = socketReader.readLine(headerLineBuf.get);
+                if (line.length == 0)
+                {
+                    // Connection closed
+                    if (socketReader.timedOut)
+                        send408; // Closed by us
+                    return;
+                }
+                else if (line == "\r\n" || line == "\n")
+                    break;
+                else if (line.startsWith("Content-Length: ")
+                    || line.startsWith("content-length: "))
+                {
+                    bool crlf = line[$ - 2 .. $] == "\r\n";
+                    char[] numberString = line["Content-Length: ".length .. $ - (crlf ? 2 : 1)];
+                    if (numberString.length > 3)
+                    {
+                        // Content-Length too large
+                        send400;
+                        return;
+                    }
+                    else if (numberString.length >= 1)
+                    {
+                        char[4] numberStringz;
+                        numberStringz[0 .. numberString.length] = numberString;
+                        (() @trusted => contentLength = atoi(&numberStringz[0]))();
+                    }
+                }
+            }
         }
+
+        UniqueHeapArray!char body;
+        if (contentLength > 0)
+        {
+            UniqueHeapArray!char bodyBuf = UniqueHeapArray!char.create(1024);
+            char[] bodyBufView;
+            while (bodyBufView.length != contentLength) // contentLength is max 999
+            {
+                if (socketReader.empty)
+                {
+                    // Body smaller than Content-Length
+                    send400;
+                    return;
+                }
+                bodyBuf.get[bodyBufView.length] = socketReader.front;
+                bodyBufView = bodyBuf[0 .. bodyBufView.length + 1];
+                socketReader.popFront;
+            }
+            body = UniqueHeapArray!char.create(bodyBufView.length);
+            body[] = bodyBufView[];
+        }
+
+        Request req = Request(body);
+        Response res = Response(204);
+        routeHandler(req, res);
+        sendStatus(res.status);
     }
 }
 
