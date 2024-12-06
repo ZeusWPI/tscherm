@@ -13,6 +13,35 @@ import ministd.typecons : UniqueHeap, UniqueHeapArray;
 
 @safe nothrow @nogc:
 
+private enum ct_htmlPage = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🥞</title>
+    <script>
+        function send() {
+            let naam = document.getElementById('naam').value;
+            let aantal = document.getElementById('aantal').value;
+            aantal = Math.floor(aantal);
+            if (!naam.length) return;
+            if (aantal <= 0) return;
+            fetch('/', {
+                method: 'POST',
+                body: aantal + " - " + naam,
+            });
+        }
+    </script>
+</head>
+<body>
+    Hallo mijn naam is
+    <input id="naam" type="text" />
+    en ik wil graag
+    <input id="aantal" type="number" value="1" />
+    pannenkoeken!
+    <input type="button" value="🥞" onclick="send()" />
+</body>
+</html>`;
+
 final
 class PannenkoekenWachtrij(uint ct_width, uint ct_height, FontT) //
 if (isInstanceOf!(Font, FontT))
@@ -69,6 +98,7 @@ nothrow @nogc:
 
     void onGet(ref Request req, ref Response res)
     {
+        res.body = ct_htmlPage;
     }
 
     void onPost(ref Request req, ref Response res)

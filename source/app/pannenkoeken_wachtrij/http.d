@@ -29,6 +29,7 @@ struct Request
 struct Response
 {
     uint status;
+    string body;
 }
 
 alias RouteHandler = void delegate(ref Request req, ref Response res) @safe nothrow @nogc;
@@ -120,14 +121,6 @@ scope nothrow @nogc:
                 else
                     return;
             }
-        }
-
-        void sendStatus(uint status)
-        {
-            UniqueHeapArray!char statusStr = status.to!(char[]);
-            socketSend("HTTP/1.1 ");
-            socketSend(statusStr);
-            socketSend("\r\n\r\n");
         }
 
         void send400()
@@ -252,9 +245,27 @@ scope nothrow @nogc:
         }
 
         Request req = Request(body);
-        Response res = Response(204);
+        Response res = Response();
+
         routeHandler(req, res);
-        sendStatus(res.status);
+
+        if (!res.status)
+            res.status = res.body.length ? 200 : 204;
+        socketSend("HTTP/1.1 ");
+        socketSend(res.status.to!(char[]));
+        socketSend("\r\n");
+        if (res.body.length)
+        {
+            socketSend("Content-Length: ");
+            socketSend(res.body.length.to!(char[]));
+            socketSend("\r\n");
+            socketSend("Content-Type: text/html\r\n");
+        }
+        socketSend("\r\n");
+        if (res.body.length)
+        {
+            socketSend(res.body);
+        }
     }
 }
 
