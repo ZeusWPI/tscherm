@@ -163,13 +163,6 @@ struct TScherm
         vTaskDelay(500);
         m_pannenkoekenWachtrij = (() @trusted => typeof(m_pannenkoekenWachtrij).create(&m_font))();
         m_pannenkoekenWachtrijInitialized = true;
-
-        vTaskDelay(2000);
-        m_pannenkoekenWachtrij.addEntry("1 - name1");
-        vTaskDelay(500);
-        m_pannenkoekenWachtrij.addEntry("3 - name2");
-        vTaskDelay(500);
-        m_pannenkoekenWachtrij.addEntry("9 - veryverylongname");
     }
 
     private static @trusted extern (C)

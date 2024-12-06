@@ -1,5 +1,7 @@
 module app.pannenkoeken_wachtrij.http;
 
+import app.pannenkoeken_wachtrij.pannenkoeken_wachtrij : PannenkoekenWachtrij;
+
 import idf.errno : EAGAIN, errno;
 import idf.esp_timer : esp_timer_get_time;
 import idf.stdlib : atoi;
@@ -11,22 +13,26 @@ import idf.freertos : vTaskDelay;
 import idfd.log : Logger;
 
 import ministd.string : startsWith;
+import ministd.traits : isInstanceOf;
 import ministd.typecons : UniqueHeapArray;
 
 @safe nothrow @nogc:
 
-struct HttpServer
+struct HttpServer(PannenkoekenWachtrijT) //
+if (isInstanceOf!(PannenkoekenWachtrij, PannenkoekenWachtrijT))
 {
     private enum log = Logger!"HttpServer"();
 
     private ushort m_port;
     private int m_listenSocket;
     private long m_recvTimeoutUsecs;
+    private PannenkoekenWachtrijT m_pannenkoekenWachtrij;
 
 scope nothrow @nogc:
-    this(ushort port, long recvTimeoutUsecs = 2_000_000)
+    this(ushort port, PannenkoekenWachtrijT pannenkoekenWachtrij, long recvTimeoutUsecs = 2_000_000)
     {
         m_port = port;
+        m_pannenkoekenWachtrij = pannenkoekenWachtrij;
         m_recvTimeoutUsecs = recvTimeoutUsecs;
     }
 
@@ -57,17 +63,17 @@ scope nothrow @nogc:
         {
             sockaddr_in sourceAddr;
             socklen_t sourceAddrSize = sourceAddr.sizeof;
-            log.info!"calling accept()";
+            // log.info!"calling accept()";
             int socket = accept(m_listenSocket, cast(sockaddr*)&sourceAddr, &sourceAddrSize);
-            log.info!"incoming connection!";
+            // log.info!"incoming connection!";
             assert(socket >= 0);
 
             handleOurOnlyClient(socket);
 
-            log.info!"closing connection socket";
+            // log.info!"closing connection socket";
             shutdown(socket, 0);
             close(socket);
-            log.info!"socket closed";
+            // log.info!"socket closed";
 
             vTaskDelay(10);
         }
@@ -77,7 +83,7 @@ scope nothrow @nogc:
     {
         log.info!"handleOurOnlyClient: Started";
         scope (exit)
-            log.info!"handleOurOnlyClient: Exited\n";
+            log.info!"handleOurOnlyClient: Exited";
 
         auto r = SocketReader!char(socket, m_recvTimeoutUsecs);
 
@@ -119,7 +125,7 @@ scope nothrow @nogc:
             send408;
             return;
         }
-        else if (firstLine.startsWith("GET /hello"))
+        else if (firstLine.startsWith("GET /hello HTTP"))
         {
             log.info!"handleOurOnlyClient: Handling GET /hello";
             socketSend(
@@ -130,9 +136,9 @@ scope nothrow @nogc:
                     "Hello!"
             );
         }
-        else if (firstLine.startsWith("POST /message"))
+        else if (firstLine.startsWith("POST / HTTP"))
         {
-            log.info!"handleOurOnlyClient: Handling POST /message";
+            log.info!"handleOurOnlyClient: Handling POST /";
 
             int contentLength = -1;
             {
@@ -196,7 +202,12 @@ scope nothrow @nogc:
                 r.popFront;
             }
 
+            bodyBuf[body.length] = 0;
             log.info!"handleOurOnlyClient: Got body %s"(&body[0]);
+
+            auto entry = UniqueHeapArray!char.create(body.length);
+            entry[] = body[];
+            m_pannenkoekenWachtrij.addEntry(entry);
 
             socketSend("HTTP/1.1 204 No Content\r\n\r\n");
         }

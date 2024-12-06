@@ -4,6 +4,8 @@ import app.vga.color : Color;
 import app.vga.font : Font;
 import app.pannenkoeken_wachtrij.http : HttpServer;
 
+import idf.freertos : pdPASS, TaskHandle_t, ulTaskGenericNotifyTake, vTaskDelay, vTaskSuspend, xTaskCreatePinnedToCore;
+
 import idfd.log : Logger;
 
 import ministd.traits : isInstanceOf;
@@ -21,33 +23,47 @@ if (isInstanceOf!(Font, FontT))
     private UniqueHeapArray!(UniqueHeapArray!char) m_entries;
     private uint m_entryCount;
 
-    private HttpServer m_httpServer;
+    private TaskHandle_t m_httpServerTask;
+    private HttpServer!(typeof(this)) m_httpServer;
 
 nothrow @nogc:
     this(const(FontT)* font)
     {
         m_font = font;
         m_entries = typeof(m_entries).create(64);
-        m_httpServer = HttpServer(80);
-        m_httpServer.start;
+
+        (() @trusted {
+            // dfmt off
+            auto result = xTaskCreatePinnedToCore(
+                pvTaskCode: &httpServerTaskEntrypoint,
+                pcName: "http",
+                usStackDepth: 4000,
+                pvParameters: cast(void*) this,
+                uxPriority: 10,
+                pvCreatedTask: &m_httpServerTask,
+                xCoreID: 0,
+            );
+            assert(result == pdPASS);
+            // dfmt on
+        })();
     }
 
-    int addEntry(string name)
+    private static @trusted extern (C)
+    void httpServerTaskEntrypoint(void* thisPtr)
+        => (cast(typeof(this)) thisPtr).httpServerTask;
+
+    private
+    void httpServerTask()
     {
-        if (m_entryCount >= m_entries.length)
-            return -1;
-        
-        m_entries[m_entryCount] = UniqueHeapArray!char.create(name.length);
-        m_entries[m_entryCount][] = name[];
-        m_entryCount++;
-        return m_entryCount;
+        m_httpServer = typeof(m_httpServer)(80, this);
+        m_httpServer.start;
     }
 
     int addEntry(UniqueHeapArray!char name)
     {
         if (m_entryCount >= m_entries.length)
             return -1;
-        
+
         m_entries[m_entryCount] = name;
         m_entryCount++;
         return m_entryCount;
@@ -67,7 +83,7 @@ nothrow @nogc:
         enum uint ct_glyphWidth = FontT.ct_glyphWidth;
         enum uint ct_glyphHeight = FontT.ct_glyphHeight;
         enum Color ct_backgroundColor = Color.BLACK;
-        enum string ct_text = "De pannenkoekenwachtrij is leeg"; 
+        enum string ct_text = "De pannenkoekenwachtrij is leeg";
         static assert(ct_text.length * ct_glyphWidth <= ct_width);
 
         enum uint yTextStart = (ct_height - ct_glyphHeight) / 2;
